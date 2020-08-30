@@ -1,17 +1,25 @@
+from typing import Optional
+
 from django.db.models import Model
 from rest_framework import serializers
 
-from rest_live import __label_to_serializer
+from rest_live import PermissionLambda, __model_to_listeners
 
 
-def subscribable(group_key: str = "pk"):
+def __register_subscription(
+    cls, group_key, check_permission: Optional[PermissionLambda]
+):
+    model: Model = cls.Meta.model
+    label = model._meta.label  # noqa
+    if label not in __model_to_listeners:
+        __model_to_listeners[label] = dict()
+    __model_to_listeners[label][group_key] = (cls, check_permission)
+
+
+def subscribable(group_key: str = "pk", check_permission: PermissionLambda = None):
     def decorator(cls):
         if issubclass(cls, serializers.Serializer):
-            model: Model = cls.Meta.model
-            label = model._meta.label
-            if label not in __label_to_serializer:
-                __label_to_serializer[label] = list()
-            __label_to_serializer[label].append((cls, group_key))
+            __register_subscription(cls, group_key, check_permission)
         return cls
 
     return decorator

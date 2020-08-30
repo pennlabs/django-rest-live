@@ -1,10 +1,16 @@
-from typing import Dict, List, Tuple, Type
+from typing import Callable, Dict, Optional, Tuple, Type
 
+from django.conf import settings
+from django.db.models import Model
 from rest_framework import serializers
 
 
 default_app_config = "rest_live.apps.RestLiveConfig"
 
-__label_to_serializer: Dict[
-    str, List[Tuple[Type[serializers.Serializer], str]]
-] = dict()
+User = settings.AUTH_USER_MODEL
+
+PermissionLambda = Callable[[User, Model], bool]
+SerializerClass = Type[serializers.Serializer]
+ListenerEntry = Dict[str, Tuple[SerializerClass, Optional[PermissionLambda]]]
+
+__model_to_listeners: Dict[str, ListenerEntry] = dict()
