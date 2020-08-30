@@ -5,7 +5,7 @@ from rest_live.decorators import __register_subscription
 from rest_live.signals import CREATED
 from test_app.serializers import TodoSerializer
 from tests.routing import application
-from tests.utils import create_list, create_todo, create_user, force_login
+from tests.utils import create_list, create_todo, create_user, force_login, communicator # noqa
 
 
 @pytest.mark.asyncio
