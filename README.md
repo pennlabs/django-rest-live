@@ -133,13 +133,15 @@ Valid `action` values are `UPDATED`, `CREATED`, and `DELETED`.
 
 ### Advanced Usage
 
-#### Custom Group Key
+#### Subscribe to groups
 By default, subscriptions are grouped by the primary key: you send one message to the websocket to get updates for
 a single Task with a given primary key. But in the todo list example, you'd generally be interested in an entire
 list of tasks, including being notified of any tasks which have been created since the page was first loaded.
-Rather than subscribe to single tasks individually, you want to subscribe to the entire list.
-This is where custom group keys come in. Pass in `group_key` to the `@subscribable` decorator to register
-subscriptions for an entire list:
+
+Rather than subscribe to single tasks individually, you want to subscribe to a list: an entire group of tasks.
+This is where group keys come in. Pass in the `group_key` you'd like to group tasks by
+to the `@subscribable` decorator to register subscriptions for an entire list:
+
 
 ```python
 # todolist/serializers.py
@@ -156,7 +158,7 @@ from:
 ```json5
 {
   "model": "todolist.Task",
-  "list_id": 1 // where PK is the primary key of the model, generally `id` unless otherwise specified.
+  "list_id": 1
 }
 ```
 
