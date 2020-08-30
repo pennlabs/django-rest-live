@@ -7,6 +7,20 @@
 `django-rest-live` adds real-time subscriptions over websockets to [Django REST Framework](https://github.com/encode/django-rest-framework)
 by leveraging websocket support provided by [Django Channels](https://github.com/django/channels).
 
+## Contents
+* [Inspiration and Goals](#inspiration-and-goals)
+* [Dependencies](#dependencies)
+* [Installation](#installation)
+* [Usage](#usage)
+    + [Basic Usage](#basic-usage)
+      - [Server-Side](#server-side)
+      - [Client-Side](#client-side)
+    + [Advanced Usage](#advanced-usage)
+      - [Subscribe to groups](#subscribe-to-groups)
+      - [Permissions](#permissions)
+      - [Conditional Serializer Pattern](#conditional-serializer-pattern)
+* [Limitations](#limitations)
+
 ## Inspiration and Goals
 The goal of this project is to enable realtime subscriptions without requiring any boilerplate or changing
 any existing REST Framework views or serializers.
@@ -253,3 +267,4 @@ and `bulk_delete` do not trigger Django's lifecycle signals, so updates will not
 - [x] Conditional Serializers
 - [ ] Permissions helpers for DRF `Permission` classes
 - [ ] Error handling and reporting
+- [ ] Expand related fields from `field` to `field_id`
