@@ -1,0 +1,14 @@
+# IDEs and OSs
+.vscode
+.idea
+.DS_Store
+
+# Python
+build/
+.coverage
+dist/
+*.egg-info
+*.pyc
+__pycache__/
+.tox
+test-results/
