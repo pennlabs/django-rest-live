@@ -18,14 +18,14 @@ async def send_model_update(
 ):
     model_label = model._meta.label
 
-    for serializer_class, key_prop in __label_to_serializer.get(model_label, []):
+    for serializer_class, group_key_prop in __label_to_serializer.get(model_label, []):
         if serializer_class is None:
             return
 
-        key = getattr(instance, key_prop)
+        group_key = getattr(instance, group_key_prop)
         serializer = serializer_class(instance)
         channel_layer = get_channel_layer()
-        group_name = get_group_name(model_label, key, key_prop)
+        group_name = get_group_name(model_label, group_key, group_key_prop)
 
         content = {"model": model_label, "payload": serializer.data, "action": action}
 
