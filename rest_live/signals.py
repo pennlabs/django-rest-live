@@ -27,7 +27,7 @@ async def send_model_update(
         channel_layer = get_channel_layer()
         group_name = get_group_name(model_label, group_key, group_key_prop)
 
-        content = {"model": model_label, "payload": serializer.data, "action": action}
+        content = {"model": model_label, "instance": serializer.data, "action": action}
 
         await channel_layer.group_send(
             group_name, {"type": "notify", "content": content}

@@ -51,7 +51,7 @@ async def test_list_subscribe_create(communicator):
     response = await communicator.receive_json_from()
     assert response == {
         "model": "test_app.Todo",
-        "payload": {"id": new_todo.id, "text": "test", "done": False},
+        "instance": {"id": new_todo.id, "text": "test", "done": False},
         "action": CREATED,
     }
 
@@ -76,7 +76,7 @@ async def test_list_subscribe_update(communicator):
     response = await communicator.receive_json_from()
     assert response == {
         "model": "test_app.Todo",
-        "payload": {"id": new_todo.id, "text": "test", "done": True},
+        "instance": {"id": new_todo.id, "text": "test", "done": True},
         "action": UPDATED,
     }
 
@@ -102,7 +102,7 @@ async def test_list_subscribe_delete(communicator):
     response = await communicator.receive_json_from()
     assert response == {
         "model": "test_app.Todo",
-        "payload": {"id": pk, "text": "test", "done": False},
+        "instance": {"id": pk, "text": "test", "done": False},
         "action": DELETED,
     }
 

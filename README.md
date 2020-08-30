@@ -128,7 +128,7 @@ When the Task with primary key `1` updates, a message in this format will be sen
 ```json
 {
     "model": "test_app.Todo",
-    "payload": {"id": 1, "text": "test", "done": true},
+    "instance": {"id": 1, "text": "test", "done": true},
     "action": "UPDATED"
 }
 ```
