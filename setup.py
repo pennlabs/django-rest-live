@@ -6,8 +6,7 @@ from setuptools.command.install import install
 
 
 VERSION = "0.0.1"
-# DESCRIPTION = open("README.md", encoding="utf-8").read()
-DESCRIPTION = "TODO"
+DESCRIPTION = open("README.md", encoding="utf-8").read()
 
 
 class VerifyVersionCommand(install):
@@ -38,10 +37,10 @@ setup(
     license="MIT",
     author="Penn Labs",
     author_email="admin@pennlabs.org",
-    description="Penn Labs example description",
+    description="Subscriptions for Django REST Framework over Websockets.",
     long_description=DESCRIPTION,
     long_description_content_type="text/markdown",
-    install_requires=["django>=3.0.0"],
+    install_requires=["django>=3.0.0", "channels>=2.0.0", "djangorestframework"],
     classifiers=[
         "Framework :: Django",
         "Programming Language :: Python",
