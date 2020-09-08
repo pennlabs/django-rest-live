@@ -18,7 +18,7 @@ def __register_subscription(
 
 def subscribable(group_key: str = "pk", check_permission: PermissionLambda = None):
     def decorator(cls):
-        if issubclass(cls, serializers.Serializer):
+        if issubclass(cls, serializers.ModelSerializer):
             __register_subscription(cls, group_key, check_permission)
         return cls
 

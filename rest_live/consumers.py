@@ -31,7 +31,6 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
         await self.accept()
 
     async def notify(self, event):
-        # TODO: Only send json if permissions match.
         content = event["content"]
         group_key = event["group_key"]
         instance_pk = event["instance_pk"]
@@ -66,6 +65,13 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
             return
 
         group_name = get_group_name(model_label, value, prop)
-        print(f"[REST-LIVE] got subscription to {group_name}")
-        self.groups.append(group_name)
-        await self.channel_layer.group_add(group_name, self.channel_name)
+        unsubscribe = content.get("unsubscribe", None)
+        if unsubscribe is None:
+            print(f"[REST-LIVE] got subscription to {group_name}")
+            self.groups.append(group_name)
+            await self.channel_layer.group_add(group_name, self.channel_name)
+        else:
+            print(f"[REST-LIVE] got unsubscribe for {group_name}")
+            self.groups.remove(group_name)
+            if group_name not in self.groups:
+                await self.channel_layer.group_discard(group_name, self.channel_name)
