@@ -72,6 +72,66 @@ async def test_list_unsubscribe(communicator):
 
 @pytest.mark.asyncio
 @pytest.mark.django_db(transaction=True)
+async def test_list_unsubscribe_does_stack(communicator):
+    __register_subscription(TodoSerializer, "list_id", None)
+    todo_list = await create_list("test list")
+    connected, _ = await communicator.connect()
+    assert connected
+    await communicator.send_json_to(
+        {
+            "model": "test_app.Todo",
+            "property": "list_id",
+            "value": todo_list.pk,
+        }
+    )
+    assert await communicator.receive_nothing()
+    await communicator.send_json_to(
+        {
+            "model": "test_app.Todo",
+            "property": "list_id",
+            "value": todo_list.pk,
+        }
+    )
+    assert await communicator.receive_nothing()
+    new_todo: Todo = await create_todo(todo_list, "test")
+    response = await communicator.receive_json_from()
+    assert response == {
+        "model": "test_app.Todo",
+        "instance": {"id": new_todo.id, "text": "test", "done": False},
+        "action": CREATED,
+    }
+    await communicator.send_json_to(
+        {
+            "unsubscribe": True,
+            "model": "test_app.Todo",
+            "property": "list_id",
+            "value": todo_list.pk,
+        }
+    )
+    assert await communicator.receive_nothing()
+    new_todo = await create_todo(todo_list, "test")
+    response = await communicator.receive_json_from()
+    assert response == {
+        "model": "test_app.Todo",
+        "instance": {"id": new_todo.id, "text": "test", "done": False},
+        "action": CREATED,
+    }
+    await communicator.send_json_to(
+        {
+            "unsubscribe": True,
+            "model": "test_app.Todo",
+            "property": "list_id",
+            "value": todo_list.pk,
+        }
+    )
+    assert await communicator.receive_nothing()
+    await create_todo(todo_list, "test")
+    assert await communicator.receive_nothing()
+    await communicator.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
 async def test_list_subscribe_update(communicator):
     __register_subscription(TodoSerializer, "list_id", None)
     todo_list = await create_list("test list")
