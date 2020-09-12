@@ -65,8 +65,8 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
             return
 
         group_name = get_group_name(model_label, value, prop)
-        unsubscribe = content.get("unsubscribe", None)
-        if unsubscribe is None:
+        unsubscribe = content.get("unsubscribe", False)
+        if not unsubscribe:
             print(f"[REST-LIVE] got subscription to {group_name}")
             self.groups.append(group_name)
             await self.channel_layer.group_add(group_name, self.channel_name)
