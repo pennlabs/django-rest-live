@@ -2,7 +2,7 @@
 
 [![CircleCI](https://circleci.com/gh/pennlabs/django-rest-live.svg?style=shield)](https://circleci.com/gh/pennlabs/django-rest-live)
 [![Coverage Status](https://codecov.io/gh/pennlabs/django-rest-live/branch/master/graph/badge.svg)](https://codecov.io/gh/pennlabs/django-rest-live)
-[![PyPi Package](https://img.shields.io/pypi/v/pypi-project.svg)](https://pypi.org/project/pypi-project/)
+[![PyPi Package](https://img.shields.io/pypi/v/django-rest-live.svg)](https://pypi.org/project/django-rest-live/)
 
 `django-rest-live` adds real-time subscriptions over websockets to [Django REST Framework](https://github.com/encode/django-rest-framework)
 by leveraging websocket support provided by [Django Channels](https://github.com/django/channels).
@@ -126,7 +126,8 @@ is established, send a JSON message (using `JSON.stringify()`) in this format:
 ```json5
 {
   "model": "todolist.Task",
-  "pk": 1 // where PK is the primary key of the model, generally `id` unless otherwise specified.
+  "property": "id",
+  "value": 1 
 }
 ```
 
@@ -176,7 +177,8 @@ from:
 ```json5
 {
   "model": "todolist.Task",
-  "list_id": 1
+  "property": "list_id",
+  "value": 1
 }
 ```
 
