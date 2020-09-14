@@ -40,6 +40,7 @@ class Migration(migrations.Migration):
                 ),
                 ("text", models.CharField(max_length=140)),
                 ("done", models.BooleanField(default=False)),
+                ("another_field", models.BooleanField(default=True)),
                 (
                     "list",
                     models.ForeignKey(

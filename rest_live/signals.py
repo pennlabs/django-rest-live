@@ -3,6 +3,7 @@ from typing import Type
 from asgiref.sync import async_to_sync, sync_to_async
 from channels.layers import get_channel_layer
 from django.db import models
+from djangorestframework_camel_case.util import camelize
 
 from rest_live import ListenerEntry, __model_to_listeners
 from rest_live.consumers import get_group_name
@@ -30,7 +31,7 @@ async def send_model_update(
 
         @sync_to_async
         def get_serializer_data():
-            return serializer.data
+            return camelize(serializer.data)
 
         serializer_data = await get_serializer_data()
 

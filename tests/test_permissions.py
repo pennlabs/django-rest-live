@@ -57,7 +57,7 @@ async def test_list_subscribe_permissions_succeeds_when_authed(
     response = await communicator.receive_json_from()
     assert response == {
         "model": "test_app.Todo",
-        "instance": {"id": new_todo.id, "text": "test", "done": False},
+        "instance": {"id": new_todo.id, "text": "test", "done": False, "anotherField": True},
         "action": CREATED,
         "group_key_value": todo_list.pk
     }
