@@ -32,7 +32,7 @@ async def send_model_update(
         def get_serializer_data():
             return serializer.data
 
-        serializer_data = await get_serializer_data
+        serializer_data = await get_serializer_data()
 
         content = {"model": model_label, "instance": serializer_data, "action": action}
 
