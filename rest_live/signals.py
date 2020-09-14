@@ -34,7 +34,7 @@ async def send_model_update(
 
         serializer_data = await get_serializer_data()
 
-        content = {"model": model_label, "instance": serializer_data, "action": action}
+        content = {"model": model_label, "instance": serializer_data, "action": action, "group_key_value": group_key}
 
         await channel_layer.group_send(
             group_name,

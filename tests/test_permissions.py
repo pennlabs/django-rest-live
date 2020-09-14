@@ -59,5 +59,6 @@ async def test_list_subscribe_permissions_succeeds_when_authed(
         "model": "test_app.Todo",
         "instance": {"id": new_todo.id, "text": "test", "done": False},
         "action": CREATED,
+        "group_key_value": todo_list.pk
     }
     await communicator.disconnect()
