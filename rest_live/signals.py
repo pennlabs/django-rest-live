@@ -1,6 +1,6 @@
 from typing import Type
 
-from asgiref.sync import async_to_sync
+from asgiref.sync import async_to_sync, sync_to_async
 from channels.layers import get_channel_layer
 from django.db import models
 
@@ -28,7 +28,13 @@ async def send_model_update(
         channel_layer = get_channel_layer()
         group_name = get_group_name(model_label, group_key, group_key_prop)
 
-        content = {"model": model_label, "instance": serializer.data, "action": action}
+        @sync_to_async
+        def get_serializer_data():
+            return serializer.data
+
+        serializer_data = await get_serializer_data
+
+        content = {"model": model_label, "instance": serializer_data, "action": action}
 
         await channel_layer.group_send(
             group_name,
