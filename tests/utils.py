@@ -82,8 +82,8 @@ def create_list(name):
 
 
 @database_sync_to_async
-def create_todo(todolist, text):
-    return Todo.objects.create(list=todolist, text=text)
+def create_todo(todolist, text, owner=None):
+    return Todo.objects.create(list=todolist, text=text, owner=owner)
 
 
 @database_sync_to_async

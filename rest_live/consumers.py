@@ -11,9 +11,7 @@ def get_group_name(model_label, value, key_prop) -> str:
 
 
 @database_sync_to_async
-def does_have_permission(
-    user, model_label, instance_filter, check: PermissionLambda
-) -> bool:
+def does_have_permission(user, model_label, instance_filter, check: PermissionLambda) -> bool:
     from django.apps import apps
 
     model = apps.get_model(model_label)
@@ -43,7 +41,7 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
             return
 
         has_permission = await does_have_permission(
-            self.user, model_label, {"id": instance_pk}, check
+            self.user, model_label, {"pk": instance_pk}, check
         )
         if has_permission:
             await self.send_json(event["content"])

@@ -14,9 +14,7 @@ UPDATED = "UPDATED"
 DELETED = "DELETED"
 
 
-async def send_model_update(
-    model: Type[models.Model], instance: models.Model, action: str
-):
+async def send_model_update(model: Type[models.Model], instance: models.Model, action: str):
     model_label = model._meta.label
 
     listeners: ListenerEntry = __model_to_listeners.get(model_label, dict())
@@ -35,7 +33,12 @@ async def send_model_update(
 
         serializer_data = await get_serializer_data()
 
-        content = {"model": model_label, "instance": serializer_data, "action": action, "group_key_value": group_key}
+        content = {
+            "model": model_label,
+            "instance": serializer_data,
+            "action": action,
+            "group_key_value": group_key,
+        }
 
         await channel_layer.group_send(
             group_name,
@@ -48,9 +51,7 @@ async def send_model_update(
         )
 
 
-def onsave_callback(
-    sender: Type[models.Model], instance: models.Model, created: bool, **kwargs
-):
+def onsave_callback(sender: Type[models.Model], instance: models.Model, created: bool, **kwargs):
     async_to_sync(send_model_update)(sender, instance, CREATED if created else UPDATED)
 
 

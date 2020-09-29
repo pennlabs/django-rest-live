@@ -6,9 +6,10 @@ from rest_framework import serializers
 from rest_live import PermissionLambda, __model_to_listeners
 
 
-def __register_subscription(
-    cls, group_key, check_permission: Optional[PermissionLambda]
-):
+def __register_subscription(cls, group_key, check_permission: Optional[PermissionLambda]):
+    if check_permission is None:
+        check_permission = lambda u, i: True  # noqa
+
     model: Model = cls.Meta.model
     label = model._meta.label  # noqa
     if label not in __model_to_listeners:
