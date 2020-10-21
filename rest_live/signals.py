@@ -1,6 +1,6 @@
 from typing import Type
 
-from asgiref.sync import async_to_sync, sync_to_async
+from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db import models
 from djangorestframework_camel_case.util import camelize
@@ -14,9 +14,7 @@ UPDATED = "UPDATED"
 DELETED = "DELETED"
 
 
-async def send_model_update(
-    model: Type[models.Model], instance: models.Model, action: str
-):
+def send_model_update(model: Type[models.Model], instance: models.Model, action: str):
     model_label = model._meta.label
 
     listeners: ListenerEntry = __model_to_listeners.get(model_label, dict())
@@ -29,15 +27,14 @@ async def send_model_update(
         channel_layer = get_channel_layer()
         group_name = get_group_name(model_label, group_key, group_key_prop)
 
-        @sync_to_async
-        def get_serializer_data():
-            return camelize(serializer.data)
+        content = {
+            "model": model_label,
+            "instance": camelize(serializer.data),
+            "action": action,
+            "group_key_value": group_key,
+        }
 
-        serializer_data = await get_serializer_data()
-
-        content = {"model": model_label, "instance": serializer_data, "action": action, "group_key_value": group_key}
-
-        await channel_layer.group_send(
+        async_to_sync(channel_layer.group_send)(
             group_name,
             {
                 "type": "notify",
@@ -48,11 +45,9 @@ async def send_model_update(
         )
 
 
-def onsave_callback(
-    sender: Type[models.Model], instance: models.Model, created: bool, **kwargs
-):
-    async_to_sync(send_model_update)(sender, instance, CREATED if created else UPDATED)
+def onsave_callback(sender: Type[models.Model], instance: models.Model, created: bool, **kwargs):
+    send_model_update(sender, instance, CREATED if created else UPDATED)
 
 
 def ondelete_callback(sender, instance, **kwargs):
-    async_to_sync(send_model_update)(sender, instance, DELETED)
+    send_model_update(sender, instance, DELETED)
