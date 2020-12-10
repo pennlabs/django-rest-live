@@ -44,13 +44,11 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
         try:
             _, check = get_permissions(model_label, group_key, rank)
         except KeyError:  # Some error has taken place and the global entry can't find a check.
-            print("NO ENTRY -- ERROR")
             return
 
         # TODO: Make a default check in the map so that the type is no longer optional
         # and we can remove this special case.
         if check is None:
-            print("SENDING PAYLOAD -- CHECK NONE")
             await self.send_json(event["content"])
             return
 
@@ -58,10 +56,7 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
             self.user, model_label, {"id": instance_pk}, check
         )
         if has_permission:
-            print("SENDING PAYLOAD -- CHECK PASSED")
             await self.send_json(event["content"])
-        else:
-            print("CHECK FAILED")
 
     async def receive_json(self, content: Dict[str, Any], **kwargs):
         """
@@ -70,13 +65,13 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
 
         model_label = content.get("model")
         if model_label is None:
-            print("[LIVE] No model")
+            print("[REST-LIVE] No model")
             return
         prop = content.get("property", DEFAULT_GROUP_KEY)
         value = content.get("value", None)
 
         if value is None:
-            print(f"[LIVE] No value for prop {prop} found.")
+            print(f"[REST-LIVE] No value for prop {prop} found.")
             return
 
         group_name = get_group_name(model_label, value, prop)
