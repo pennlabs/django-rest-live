@@ -6,10 +6,11 @@ from channels.db import database_sync_to_async as db
 from rest_live.consumers import SubscriptionConsumer
 from rest_live.decorators import __register_subscription, __clear_subscriptions
 from rest_live.signals import CREATED, DELETED, UPDATED
+from rest_live.testing import async_test, get_headers_for_user
 
 from test_app.models import List, Todo
 from test_app.serializers import TodoSerializer, AuthedTodoSerializer
-from tests.utils import async_test, RestLiveTestCase, force_login
+from tests.utils import RestLiveTestCase
 
 User = get_user_model()
 
@@ -105,8 +106,7 @@ class PermissionsTests(RestLiveTestCase):
         self.assertTrue(connected)
 
         self.user = await db(User.objects.create_user)("test")
-        cookies = await force_login(self.user)
-        headers = [(b"cookie", cookies.output(header="", sep="; ").encode())]
+        headers = await get_headers_for_user(self.user)
         self.auth_communicator = WebsocketCommunicator(
             AuthMiddlewareStack(SubscriptionConsumer), "/ws/subscribe/", headers
         )

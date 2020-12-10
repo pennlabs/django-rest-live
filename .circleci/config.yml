@@ -1,6 +1,6 @@
 version: 2.1
 orbs:
-  pypi: pennlabs/pypi-tools@0.0.2
+  pypi: pennlabs/pypi-tools@0.0.4
 
 workflows:
   version: 2
