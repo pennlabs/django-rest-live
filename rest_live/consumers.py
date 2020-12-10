@@ -1,9 +1,9 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
-from rest_live import PermissionLambda, __model_to_listeners
+from rest_live import PermissionLambda, __model_to_listeners, DEFAULT_GROUP_KEY
 
 
 def get_group_name(model_label, value, key_prop) -> str:
@@ -25,6 +25,10 @@ def get_permission_check(model_label, group_key):
     return __model_to_listeners.get(model_label, dict()).get(group_key, (None, None))[1]
 
 
+def get_permissions(model_label, group_key, serializer_name):
+    return __model_to_listeners[model_label][group_key][serializer_name]
+
+
 class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.user = self.scope.get("user", None)  # noqa
@@ -34,10 +38,16 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
         content = event["content"]
         group_key = event["group_key"]
         instance_pk = event["instance_pk"]
+        serializer_name = event["serializer_name"]
         model_label = content["model"]
 
-        check: Optional[PermissionLambda] = get_permission_check(model_label, group_key)
+        try:
+            _, check = get_permissions(model_label, group_key, serializer_name)
+        except KeyError:  # Some error has taken place and the global entry can't find a check.
+            return
 
+        # TODO: Make a default check in the map so that the type is no longer optional
+        # and we can remove this special case.
         if check is None:
             await self.send_json(event["content"])
             return
@@ -55,13 +65,13 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
 
         model_label = content.get("model")
         if model_label is None:
-            print("[LIVE] No model")
+            print("[REST-LIVE] No model")
             return
-        prop = content.get("property")
+        prop = content.get("property", DEFAULT_GROUP_KEY)
         value = content.get("value", None)
 
         if value is None:
-            print(f"[LIVE] No value for prop {prop} found.")
+            print(f"[REST-LIVE] No value for prop {prop} found.")
             return
 
         group_name = get_group_name(model_label, value, prop)
