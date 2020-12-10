@@ -27,7 +27,7 @@ class VerifyVersionCommand(install):
 setup(
     name="django-rest-live",
     version=VERSION,
-    packages=find_packages(include=["rest_live"]),
+    packages=find_packages(exclude=["tests", "test_app"]),
     url="https://github.com/pennlabs/django-rest-live",
     project_urls={
         "Changelog": (
