@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional, Tuple, Type
+from typing import Callable, Dict, Optional, Tuple, Type, List
 
 from django.conf import settings
 from django.db.models import Model
@@ -11,6 +11,6 @@ User = settings.AUTH_USER_MODEL
 
 PermissionLambda = Callable[[User, Model], bool]
 SerializerClass = Type[serializers.Serializer]
-ListenerEntry = Dict[str, Tuple[SerializerClass, Optional[PermissionLambda]]]
+ListenerEntry = Dict[str, List[Tuple[SerializerClass, Optional[PermissionLambda]]]]
 
 __model_to_listeners: Dict[str, ListenerEntry] = dict()

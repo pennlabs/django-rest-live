@@ -15,9 +15,7 @@ def __register_subscription(
     label = model._meta.label  # noqa
     post_save.connect(onsave_callback, model, dispatch_uid="rest-live")
     post_delete.connect(ondelete_callback, model, dispatch_uid="rest-live")
-    if label not in __model_to_listeners:
-        __model_to_listeners[label] = dict()
-    __model_to_listeners[label][group_key] = (cls, check_permission)
+    __model_to_listeners.setdefault(label, dict()).setdefault(group_key, []).append((cls, check_permission))
 
 
 def subscribable(group_key: str = "pk", check_permission: PermissionLambda = None):

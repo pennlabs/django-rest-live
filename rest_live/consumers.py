@@ -24,6 +24,8 @@ def does_have_permission(
 def get_permission_check(model_label, group_key):
     return __model_to_listeners.get(model_label, dict()).get(group_key, (None, None))[1]
 
+def get_permissions(model_label, group_key):
+    return __model_to_listeners[model_label][group_key]
 
 class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
@@ -36,17 +38,25 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
         instance_pk = event["instance_pk"]
         model_label = content["model"]
 
-        check: Optional[PermissionLambda] = get_permission_check(model_label, group_key)
-
-        if check is None:
-            await self.send_json(event["content"])
+        # check: Optional[PermissionLambda] = get_permission_check(model_label, group_key)
+        try:
+            entries = get_permissions(model_label, group_key)
+        except KeyError:  # Some error has taken place and the global entry can't find a check.
             return
 
-        has_permission = await does_have_permission(
-            self.user, model_label, {"id": instance_pk}, check
-        )
-        if has_permission:
-            await self.send_json(event["content"])
+        for _, check in entries:
+            # If check is omitted, send update.
+            if check is None:
+                print("SENDING PAYLOAD -- CHECK NONE")
+                await self.send_json(event["content"])
+                continue
+
+            has_permission = await does_have_permission(
+                self.user, model_label, {"id": instance_pk}, check
+            )
+            if has_permission:
+                print("SENDING PAYLOAD -- CHECK PASSED")
+                await self.send_json(event["content"])
 
     async def receive_json(self, content: Dict[str, Any], **kwargs):
         """
