@@ -58,7 +58,9 @@ class RestLiveTestCase(TransactionTestCase):
         response = await communicator.receive_json_from()
         self.assertDictEqual(response, expected)
 
-    def make_todo_sub_response(self, todo, action, group_by_field="pk", serializer=TodoSerializer):
+    def make_todo_sub_response(
+        self, todo, action, group_by_field="pk", serializer=TodoSerializer
+    ):
         return {
             "model": "test_app.Todo",
             "instance": camelize(serializer(todo).data),
@@ -75,12 +77,10 @@ class RestLiveTestCase(TransactionTestCase):
     async def make_todo(self):
         return await db(Todo.objects.create)(list=self.list, text="test")
 
-    async def assertReceivedUpdateForTodo(self, todo, action, communicator=None, serializer=TodoSerializer):
+    async def assertReceivedUpdateForTodo(
+        self, todo, action, communicator=None, serializer=TodoSerializer
+    ):
         await self.assertResponseEquals(
             self.make_todo_sub_response(todo, action, "list_id", serializer),
-            communicator
+            communicator,
         )
-
-
-
-

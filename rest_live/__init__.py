@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional, Tuple, Type, List
+from typing import Callable, Dict, Optional, Tuple, Type
 
 from django.conf import settings
 from django.db.models import Model

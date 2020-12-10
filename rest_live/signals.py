@@ -38,8 +38,10 @@ def send_model_update(model: Type[models.Model], instance: models.Model, action:
                         "action": action,
                         "group_key_value": group_value,
                     },
-                    "group_key": group_key_prop,  # Group key (for looking up in the dictionary)
-                    "serializer_name": serializer_name,  # Rank for looking up in the dictionary
+                    # Group key (for looking up in the dictionary)
+                    "group_key": group_key_prop,
+                    # Rank for looking up in the dictionary
+                    "serializer_name": serializer_name,
                     "instance_pk": instance.pk,
                 },
             )

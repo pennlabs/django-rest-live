@@ -6,10 +6,10 @@ from channels.db import database_sync_to_async
 
 def async_test(fun):
     async def wrapped(self, *args, **kwargs):
-        if hasattr(self, 'asyncSetUp'):
+        if hasattr(self, "asyncSetUp"):
             await self.asyncSetUp()
         ret = await fun(self, *args, **kwargs)
-        if hasattr(self, 'asyncTearDown'):
+        if hasattr(self, "asyncTearDown"):
             await self.asyncTearDown()
         return ret
 

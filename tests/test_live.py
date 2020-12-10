@@ -97,7 +97,9 @@ class BasicTests(RestLiveTestCase):
 
 class PermissionsTests(RestLiveTestCase):
     async def asyncSetUp(self):
-        register_subscription(TodoSerializer, "list_id", lambda u, i: u.is_authenticated)
+        register_subscription(
+            TodoSerializer, "list_id", lambda u, i: u.is_authenticated
+        )
         self.list = await db(List.objects.create)(name="test list")
         self.communicator = WebsocketCommunicator(
             AuthMiddlewareStack(SubscriptionConsumer), "/ws/subscribe/"
@@ -129,19 +131,27 @@ class PermissionsTests(RestLiveTestCase):
     async def test_list_sub_with_permission(self):
         await self.subscribe_to_list(self.auth_communicator)
         new_todo = await self.make_todo()
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, self.auth_communicator)
+        await self.assertReceivedUpdateForTodo(
+            new_todo, CREATED, self.auth_communicator
+        )
 
     @async_test
     async def test_list_sub_conditional_serializers(self):
         clear_subs()
-        register_subscription(TodoSerializer, "list_id", lambda u, i: not u.is_authenticated)
-        register_subscription(AuthedTodoSerializer, "list_id", lambda u, i: u.is_authenticated)
+        register_subscription(
+            TodoSerializer, "list_id", lambda u, i: not u.is_authenticated
+        )
+        register_subscription(
+            AuthedTodoSerializer, "list_id", lambda u, i: u.is_authenticated
+        )
         await self.subscribe_to_list(self.communicator)
         await self.subscribe_to_list(self.auth_communicator)
         new_todo = await self.make_todo()
 
         await self.assertReceivedUpdateForTodo(new_todo, CREATED, self.communicator)
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, self.auth_communicator, serializer=AuthedTodoSerializer)
+        await self.assertReceivedUpdateForTodo(
+            new_todo, CREATED, self.auth_communicator, serializer=AuthedTodoSerializer
+        )
 
         # Assert that each connection has only received a single update.
         self.assertTrue(await self.communicator.receive_nothing())

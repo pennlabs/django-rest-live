@@ -43,7 +43,8 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
 
         try:
             _, check = get_permissions(model_label, group_key, serializer_name)
-        except KeyError:  # Some error has taken place and the global entry can't find a check.
+        # Some error has taken place and the global entry can't find a check.
+        except KeyError:
             return
 
         # TODO: Make a default check in the map so that the type is no longer optional
