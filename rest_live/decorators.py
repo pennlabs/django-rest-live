@@ -13,19 +13,20 @@ def __clear_subscriptions():
 
 
 def __register_subscription(
-    cls, group_key, check_permission: Optional[PermissionLambda], rank: int = 0
+    cls, group_key, check_permission: Optional[PermissionLambda]
 ):
     model: Model = cls.Meta.model
     label = model._meta.label  # noqa
     post_save.connect(onsave_callback, model, dispatch_uid="rest-live")
     post_delete.connect(ondelete_callback, model, dispatch_uid="rest-live")
     __model_to_listeners.setdefault(label, dict()).setdefault(group_key, dict())
-    if rank in __model_to_listeners[label][group_key].keys():
+    serializer_name = cls.__qualname__
+    if serializer_name in __model_to_listeners[label][group_key].keys():
         print(
-            "WARNING: Two registrations for the same model/key combination"
-            f"have identical rank {rank} and one will be overwritten."
+            "WARNING: Two registrations for the same model/key/serializer combination"
+            f"({label}/{group_key}/{serializer_name}) and one will be overwritten."
         )
-    __model_to_listeners[label][group_key][rank] = (cls, check_permission)
+    __model_to_listeners[label][group_key][serializer_name] = (cls, check_permission)
 
 
 def subscribable(

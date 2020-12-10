@@ -85,10 +85,10 @@ async def test_list_subscribe_permissions_multiple_serializers_by_auth(
     communicator: WebsocketCommunicator,
 ):
     __register_subscription(
-        TodoSerializer, "list_id", lambda u, i: not u.is_authenticated, rank=1
+        TodoSerializer, "list_id", lambda u, i: not u.is_authenticated
     )
     __register_subscription(
-        AuthedTodoSerializer, "list_id", lambda u, i: u.is_authenticated, rank=0
+        AuthedTodoSerializer, "list_id", lambda u, i: u.is_authenticated
     )
     user = await create_user("user")
     todo_list = await create_list("test list")

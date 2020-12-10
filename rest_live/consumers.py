@@ -25,8 +25,8 @@ def get_permission_check(model_label, group_key):
     return __model_to_listeners.get(model_label, dict()).get(group_key, (None, None))[1]
 
 
-def get_permissions(model_label, group_key, rank):
-    return __model_to_listeners[model_label][group_key][rank]
+def get_permissions(model_label, group_key, serializer_name):
+    return __model_to_listeners[model_label][group_key][serializer_name]
 
 
 class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
@@ -38,11 +38,11 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
         content = event["content"]
         group_key = event["group_key"]
         instance_pk = event["instance_pk"]
-        rank = event["rank"]
+        serializer_name = event["serializer_name"]
         model_label = content["model"]
 
         try:
-            _, check = get_permissions(model_label, group_key, rank)
+            _, check = get_permissions(model_label, group_key, serializer_name)
         except KeyError:  # Some error has taken place and the global entry can't find a check.
             return
 

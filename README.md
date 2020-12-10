@@ -244,21 +244,20 @@ def has_auth(user, instance):
 def has_no_auth(user, instance):
     return not has_auth(user, instance)
 
-@subscribable(group_key="list_id", check_permission=has_auth, rank=0)
+@subscribable(group_key="list_id", check_permission=has_auth)
 class AuthedTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ["id", "text", "done"]
 
-@subscribable(group_key="list_id", check_permission=has_no_auth, rank=1)
+@subscribable(group_key="list_id", check_permission=has_no_auth)
 class NoAuthTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ["id", "text"]
 ```
 Clients in both situations would send the same subscribe request, but would receive different model instances depending
-on their authentication status. The additional `rank` parameter is used to differentiate the two subscription types within `django-rest-live`.
-For the package to operate correctly, `rank` must be **unique** when given a group key and a model.
+on their authentication status. 
 
 ## Limitations
 This package works by listening in on model lifecycle events sent off by Django's [signal dispatcher](https://docs.djangoproject.com/en/3.1/topics/signals/).
