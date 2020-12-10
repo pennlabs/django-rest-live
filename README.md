@@ -126,17 +126,18 @@ is established, send a JSON message (using `JSON.stringify()`) in this format:
 ```json5
 {
   "model": "todolist.Task",
-  "property": "id",
   "value": 1 
 }
 ```
 
-The model label should be in Django's standard `app.modelname` format, and the `pk` property is the [primary key for the
-model](https://docs.djangoproject.com/en/3.1/topics/db/queries/#the-pk-lookup-shortcut), generally the `id` field.
+The model label should be in Django's standard `app.modelname` format. `value` field here is set to the value for
+the [primary key](https://docs.djangoproject.com/en/3.1/topics/db/queries/#the-pk-lookup-shortcut) for the model instance
+we're subscribing to. This is generally the value of the `id` field, but is equivalent to querying
+for `Task.objects.filter(pk=<value>)`.
 
-The example message above would subscribe to updates for the todo task with an ID of 1. As mentioned above, the client
-should make a GET request to get the entire list, with all its tasks and their associated IDs, to figure out which IDs
-to subscribe to.
+The example message above would subscribe to updates for the todo task with an primary key of 1.
+As mentioned above, the client should make a GET request to get the entire list, with all its tasks and their
+associated IDs, to figure out which IDs to subscribe to.
 
 When the Task with primary key `1` updates, a message in this format will be sent over the websocket:
 
@@ -144,20 +145,23 @@ When the Task with primary key `1` updates, a message in this format will be sen
 {
     "model": "test_app.Todo",
     "instance": {"id": 1, "text": "test", "done": true},
-    "action": "UPDATED"
+    "action": "UPDATED",
+    "group_key_value": 1
 }
 ```
 
 Valid `action` values are `UPDATED`, `CREATED`, and `DELETED`.
+`group_key_value` might seem erroneous in this example, but is useful for group subscriptions, described in the next
+section.
 
 ### Advanced Usage
 
 #### Subscribe to groups
-By default, subscriptions are grouped by the primary key: you send one message to the websocket to get updates for
+As mentioned above, subscriptions are grouped by the primary key by default: you send one message to the websocket to get updates for
 a single Task with a given primary key. But in the todo list example, you'd generally be interested in an entire
 list of tasks, including being notified of any tasks which have been created since the page was first loaded.
 
-Rather than subscribe to single tasks individually, you want to subscribe to a list: an entire group of tasks.
+Rather than subscribe all tasks individually, you want to subscribe to a list: an entire group of tasks.
 This is where group keys come in. Pass in the `group_key` you'd like to group tasks by
 to the `@subscribable` decorator to register subscriptions for an entire list:
 
@@ -171,8 +175,8 @@ class TaskSerializer(serializers.ModelSerializer):
     ...
 ```
 
-On the client side, subscription requests will no longer be `pk`, but the `list_id` of the list you'd like to get updates
-from:
+On the client side, we now have to specify the group key `property` we are subscribing to. In this case, the `list_id`
+of the list you'd like to get updates from:
 
 ```json5
 {
@@ -182,13 +186,13 @@ from:
 }
 ```
 
-This will subscribe you to updates for all Tasks where `list_id` is `1`.
+This will subscribe you to updates for all Tasks in the list which has ID 1.
 
 What's important to remember here is that while the field is defined as a `ForeignKey` called `list` on the model,
-the underlying integer field in the database that links together Tasks and Lists is called `list_id`, or, more generally,
+the underlying integer field in the database that links together Tasks and Lists is called `list_id`. More generally,
 `<fieldname>_id` for any related fieldname on the model.
 
-The subscribable decorator can be stacked. If you want to enable subscriptions by both `list_id` for entire lists and
+The `subscribable` decorator can be stacked. If you want to enable subscriptions by both `list_id` for entire lists and
 `pk` for individual tasks, add two decorators:
 
 ```python
@@ -240,21 +244,21 @@ def has_auth(user, instance):
 def has_no_auth(user, instance):
     return not has_auth(user, instance)
 
-@subscribable(group_key="list_id", check_permission=has_auth)
+@subscribable(group_key="list_id", check_permission=has_auth, rank=0)
 class AuthedTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ["id", "text", "done"]
 
-@subscribable(group_key="list_id", check_permission=has_no_auth)
+@subscribable(group_key="list_id", check_permission=has_no_auth, rank=1)
 class NoAuthTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ["id", "text"]
 ```
-
 Clients in both situations would send the same subscribe request, but would receive different model instances depending
-on their authentication status.
+on their authentication status. The additional `rank` parameter is used to differentiate the two subscription types within `django-rest-live`.
+For the package to operate correctly, `rank` must be **unique** when given a group key and a model.
 
 ## Limitations
 This package works by listening in on model lifecycle events sent off by Django's [signal dispatcher](https://docs.djangoproject.com/en/3.1/topics/signals/).

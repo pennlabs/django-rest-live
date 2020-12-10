@@ -4,7 +4,7 @@ from django.db.models import Model
 from django.db.models.signals import post_delete, post_save
 from rest_framework import serializers
 
-from rest_live import PermissionLambda, __model_to_listeners
+from rest_live import PermissionLambda, __model_to_listeners, DEFAULT_GROUP_KEY
 from rest_live.signals import ondelete_callback, onsave_callback
 
 
@@ -29,7 +29,7 @@ def __register_subscription(
 
 
 def subscribable(
-    group_key: str = "pk", check_permission: PermissionLambda = None, rank=0
+    group_key: str = DEFAULT_GROUP_KEY, check_permission: PermissionLambda = None, rank=0
 ):
     def decorator(cls):
         if issubclass(cls, serializers.ModelSerializer):

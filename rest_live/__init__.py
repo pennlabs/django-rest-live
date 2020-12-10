@@ -7,6 +7,8 @@ from rest_framework import serializers
 
 default_app_config = "rest_live.apps.RestLiveConfig"
 
+DEFAULT_GROUP_KEY = "pk"
+
 User = settings.AUTH_USER_MODEL
 
 PermissionLambda = Callable[[User, Model], bool]

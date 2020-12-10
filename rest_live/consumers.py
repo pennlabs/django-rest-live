@@ -3,7 +3,7 @@ from typing import Any, Dict
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
-from rest_live import PermissionLambda, __model_to_listeners
+from rest_live import PermissionLambda, __model_to_listeners, DEFAULT_GROUP_KEY
 
 
 def get_group_name(model_label, value, key_prop) -> str:
@@ -72,7 +72,7 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
         if model_label is None:
             print("[LIVE] No model")
             return
-        prop = content.get("property")
+        prop = content.get("property", DEFAULT_GROUP_KEY)
         value = content.get("value", None)
 
         if value is None:
