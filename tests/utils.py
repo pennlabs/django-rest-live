@@ -6,12 +6,84 @@ from channels.testing import WebsocketCommunicator
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest, SimpleCookie
+from django.test import TransactionTestCase
+from djangorestframework_camel_case.util import camelize
 
 from test_app.models import List, Todo
-from tests.routing import application
+from test_app.serializers import TodoSerializer
 
 
 User = get_user_model()
+db = database_sync_to_async
+
+
+def async_test(fun):
+    async def wrapped(self, *args, **kwargs):
+        await self.asyncSetUp()
+        ret = await fun(self, *args, **kwargs)
+        await self.asyncTearDown()
+        return ret
+
+    return wrapped
+
+
+class RestLiveTestCase(TransactionTestCase):
+    communicator: WebsocketCommunicator
+    list: List
+
+    async def subscribe(self, model, property, value, communicator=None):
+        if communicator is None:
+            communicator = self.communicator
+        await communicator.send_json_to(
+            {
+                "model": model,
+                "property": property,
+                "value": value,
+            }
+        )
+        self.assertTrue(await communicator.receive_nothing())
+
+    async def unsubscribe(self, model, property, value, communicator=None):
+        if communicator is None:
+            communicator = self.communicator
+        await communicator.send_json_to(
+            {
+                "unsubscribe": True,
+                "model": model,
+                "property": property,
+                "value": value,
+            }
+        )
+        self.assertTrue(await communicator.receive_nothing())
+
+    async def assertResponseEquals(self, expected, communicator=None):
+        if communicator is None:
+            communicator = self.communicator
+        response = await communicator.receive_json_from()
+        self.assertDictEqual(response, expected)
+
+    def make_todo_sub_response(self, todo, action, group_by_field="pk", serializer=TodoSerializer):
+        return {
+            "model": "test_app.Todo",
+            "instance": camelize(serializer(todo).data),
+            "action": action,
+            "group_key_value": getattr(todo, group_by_field),
+        }
+
+    async def subscribe_to_list(self, communicator=None):
+        await self.subscribe("test_app.Todo", "list_id", self.list.pk, communicator)
+
+    async def unsubscribe_from_list(self, communicator=None):
+        await self.unsubscribe("test_app.Todo", "list_id", self.list.pk, communicator)
+
+    async def make_todo(self):
+        return await db(Todo.objects.create)(list=self.list, text="test")
+
+    async def assertReceivedUpdateForTodo(self, todo, action, communicator=None, serializer=TodoSerializer):
+        await self.assertResponseEquals(
+            self.make_todo_sub_response(todo, action, "list_id", serializer),
+            communicator
+        )
 
 
 def _login(user, backend=None):
@@ -43,17 +115,6 @@ def _login(user, backend=None):
 
 
 @database_sync_to_async
-def login(**credentials):
-    from django.contrib.auth import authenticate
-
-    user = authenticate(**credentials)
-    if user:
-        return _login(user)
-    else:
-        return SimpleCookie()
-
-
-@database_sync_to_async
 def force_login(user, backend=None):
     def get_backend():
         from django.contrib.auth import load_backend
@@ -68,36 +129,3 @@ def force_login(user, backend=None):
     user.backend = backend
     return _login(user, backend)
 
-
-@pytest.fixture
-def communicator():
-    from test_app import serializers  # noqa
-
-    return WebsocketCommunicator(application, "/ws/subscribe/")
-
-
-@database_sync_to_async
-def create_list(name):
-    return List.objects.create(name=name)
-
-
-@database_sync_to_async
-def create_todo(todolist, text):
-    return Todo.objects.create(list=todolist, text=text)
-
-
-@database_sync_to_async
-def update_todo(todo, **kwargs):
-    for k, v in kwargs.items():
-        setattr(todo, k, v)
-    return todo.save()
-
-
-@database_sync_to_async
-def delete_todo(todo):
-    todo.delete()
-
-
-@database_sync_to_async
-def create_user(username):
-    return User.objects.create_user(username)

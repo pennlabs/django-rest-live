@@ -27,7 +27,7 @@ any existing REST Framework views or serializers.
 `django-rest-live` took initial inspiration from [this article by Kit La Touche](https://www.oddbird.net/2018/12/12/channels-and-drf/).
 
 ## Dependencies
-- [Django](https://github.com/django/django/) (3.0 and up)
+- [Django](https://github.com/django/django/) (3.1 and up)
 - [Django Channels](https://github.com/django/channels) (2.x, 3.0 not yet supported) 
 - [Django REST Framework](https://github.com/encode/django-rest-framework/)
 - [`channels_redis`](https://github.com/django/channels_redis) for

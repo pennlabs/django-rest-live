@@ -27,7 +27,7 @@ class VerifyVersionCommand(install):
 setup(
     name="django-rest-live",
     version=VERSION,
-    packages=find_packages(exclude=["tests", "test_app"]),
+    packages=find_packages(include=["rest_live"]),
     url="https://github.com/pennlabs/django-rest-live",
     project_urls={
         "Changelog": (
@@ -40,7 +40,7 @@ setup(
     description="Subscriptions for Django REST Framework over Websockets.",
     long_description=DESCRIPTION,
     long_description_content_type="text/markdown",
-    install_requires=["django>=3.0.0", "channels>=2.0.0,<3", "djangorestframework"],
+    install_requires=["django>=3.1.0", "channels>=2.0.0,<3", "djangorestframework"],
     classifiers=[
         "Framework :: Django",
         "Programming Language :: Python",
