@@ -1,11 +1,21 @@
 import pytest
 from channels.testing import WebsocketCommunicator
 
-from rest_live.decorators import __register_subscription
+from rest_live.decorators import __register_subscription, __clear_subscriptions
 from rest_live.signals import CREATED, DELETED, UPDATED
 from test_app.models import Todo
 from test_app.serializers import TodoSerializer
-from tests.utils import create_list, create_todo, delete_todo, update_todo, communicator  # noqa
+from tests.utils import (
+    create_list,
+    create_todo,
+    delete_todo,
+    update_todo,
+    communicator,
+)  # noqa
+
+
+def teardown_function():
+    __clear_subscriptions()
 
 
 @pytest.mark.asyncio
@@ -27,9 +37,14 @@ async def test_list_subscribe_create(communicator):
     response = await communicator.receive_json_from()
     assert response == {
         "model": "test_app.Todo",
-        "instance": {"id": new_todo.id, "text": "test", "done": False, "anotherField": True},
+        "instance": {
+            "id": new_todo.id,
+            "text": "test",
+            "done": False,
+            "anotherField": True,
+        },
         "action": CREATED,
-        "group_key_value": todo_list.pk
+        "group_key_value": todo_list.pk,
     }
 
     await communicator.disconnect()
@@ -54,9 +69,14 @@ async def test_list_unsubscribe(communicator):
     response = await communicator.receive_json_from()
     assert response == {
         "model": "test_app.Todo",
-        "instance": {"id": new_todo.id, "text": "test", "done": False, "anotherField": True},
+        "instance": {
+            "id": new_todo.id,
+            "text": "test",
+            "done": False,
+            "anotherField": True,
+        },
         "action": CREATED,
-        "group_key_value": todo_list.pk
+        "group_key_value": todo_list.pk,
     }
     await communicator.send_json_to(
         {
@@ -99,9 +119,14 @@ async def test_list_unsubscribe_does_stack(communicator):
     response = await communicator.receive_json_from()
     assert response == {
         "model": "test_app.Todo",
-        "instance": {"id": new_todo.id, "text": "test", "done": False, "anotherField": True},
+        "instance": {
+            "id": new_todo.id,
+            "text": "test",
+            "done": False,
+            "anotherField": True,
+        },
         "action": CREATED,
-        "group_key_value": todo_list.pk
+        "group_key_value": todo_list.pk,
     }
     await communicator.send_json_to(
         {
@@ -116,9 +141,14 @@ async def test_list_unsubscribe_does_stack(communicator):
     response = await communicator.receive_json_from()
     assert response == {
         "model": "test_app.Todo",
-        "instance": {"id": new_todo.id, "text": "test", "done": False, "anotherField": True},
+        "instance": {
+            "id": new_todo.id,
+            "text": "test",
+            "done": False,
+            "anotherField": True,
+        },
         "action": CREATED,
-        "group_key_value": todo_list.pk
+        "group_key_value": todo_list.pk,
     }
     await communicator.send_json_to(
         {
@@ -154,9 +184,14 @@ async def test_list_subscribe_update(communicator):
     response = await communicator.receive_json_from()
     assert response == {
         "model": "test_app.Todo",
-        "instance": {"id": new_todo.id, "text": "test", "done": True, "anotherField": True},
+        "instance": {
+            "id": new_todo.id,
+            "text": "test",
+            "done": True,
+            "anotherField": True,
+        },
         "action": UPDATED,
-        "group_key_value": todo_list.pk
+        "group_key_value": todo_list.pk,
     }
 
     await communicator.disconnect()
@@ -185,7 +220,7 @@ async def test_list_subscribe_delete(communicator):
         "model": "test_app.Todo",
         "instance": {"id": pk, "text": "test", "done": False, "anotherField": True},
         "action": DELETED,
-        "group_key_value": todo_list.pk
+        "group_key_value": todo_list.pk,
     }
 
     await communicator.disconnect()

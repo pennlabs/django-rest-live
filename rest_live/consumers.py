@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
@@ -24,8 +24,10 @@ def does_have_permission(
 def get_permission_check(model_label, group_key):
     return __model_to_listeners.get(model_label, dict()).get(group_key, (None, None))[1]
 
-def get_permissions(model_label, group_key):
-    return __model_to_listeners[model_label][group_key]
+
+def get_permissions(model_label, group_key, rank):
+    return __model_to_listeners[model_label][group_key][rank]
+
 
 class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
@@ -36,27 +38,30 @@ class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
         content = event["content"]
         group_key = event["group_key"]
         instance_pk = event["instance_pk"]
+        rank = event["rank"]
         model_label = content["model"]
 
-        # check: Optional[PermissionLambda] = get_permission_check(model_label, group_key)
         try:
-            entries = get_permissions(model_label, group_key)
+            _, check = get_permissions(model_label, group_key, rank)
         except KeyError:  # Some error has taken place and the global entry can't find a check.
+            print("NO ENTRY -- ERROR")
             return
 
-        for _, check in entries:
-            # If check is omitted, send update.
-            if check is None:
-                print("SENDING PAYLOAD -- CHECK NONE")
-                await self.send_json(event["content"])
-                continue
+        # TODO: Make a default check in the map so that the type is no longer optional
+        # and we can remove this special case.
+        if check is None:
+            print("SENDING PAYLOAD -- CHECK NONE")
+            await self.send_json(event["content"])
+            return
 
-            has_permission = await does_have_permission(
-                self.user, model_label, {"id": instance_pk}, check
-            )
-            if has_permission:
-                print("SENDING PAYLOAD -- CHECK PASSED")
-                await self.send_json(event["content"])
+        has_permission = await does_have_permission(
+            self.user, model_label, {"id": instance_pk}, check
+        )
+        if has_permission:
+            print("SENDING PAYLOAD -- CHECK PASSED")
+            await self.send_json(event["content"])
+        else:
+            print("CHECK FAILED")
 
     async def receive_json(self, content: Dict[str, Any], **kwargs):
         """

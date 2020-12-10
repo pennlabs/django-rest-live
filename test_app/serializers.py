@@ -7,3 +7,14 @@ class TodoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Todo
         fields = ["id", "text", "done", "another_field"]
+
+
+class AuthedTodoSerializer(serializers.ModelSerializer):
+    auth = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Todo
+        fields = ["id", "text", "done", "another_field", "auth"]
+
+    def get_auth(self, obj):
+        return "ADMIN"

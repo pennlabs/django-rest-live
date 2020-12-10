@@ -11,6 +11,6 @@ User = settings.AUTH_USER_MODEL
 
 PermissionLambda = Callable[[User, Model], bool]
 SerializerClass = Type[serializers.Serializer]
-ListenerEntry = Dict[str, List[Tuple[SerializerClass, Optional[PermissionLambda]]]]
+ListenerEntry = Dict[str, Dict[int, Tuple[SerializerClass, Optional[PermissionLambda]]]]
 
 __model_to_listeners: Dict[str, ListenerEntry] = dict()

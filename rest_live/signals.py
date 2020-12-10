@@ -19,7 +19,7 @@ def send_model_update(model: Type[models.Model], instance: models.Model, action:
 
     listeners: ListenerEntry = __model_to_listeners.get(model_label, dict())
     for group_key_prop, entries in listeners.items():
-        for serializer_class, _ in entries:
+        for rank, (serializer_class, _) in entries.items():
             if serializer_class is None:
                 return
 
@@ -39,12 +39,15 @@ def send_model_update(model: Type[models.Model], instance: models.Model, action:
                         "group_key_value": group_value,
                     },
                     "group_key": group_key_prop,  # Group key (for looking up in the dictionary)
+                    "rank": rank,  # Rank for looking up in the dictionary
                     "instance_pk": instance.pk,
                 },
             )
 
 
-def onsave_callback(sender: Type[models.Model], instance: models.Model, created: bool, **kwargs):
+def onsave_callback(
+    sender: Type[models.Model], instance: models.Model, created: bool, **kwargs
+):
     send_model_update(sender, instance, CREATED if created else UPDATED)
 
 
