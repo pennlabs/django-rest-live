@@ -12,13 +12,16 @@ by leveraging websocket support provided by [Django Channels](https://github.com
 * [Dependencies](#dependencies)
 * [Installation](#installation)
 * [Usage](#usage)
-    + [Basic Usage](#basic-usage)
-      - [Server-Side](#server-side)
-      - [Client-Side](#client-side)
-    + [Advanced Usage](#advanced-usage)
-      - [Subscribe to groups](#subscribe-to-groups)
-      - [Permissions](#permissions)
-      - [Conditional Serializer Pattern](#conditional-serializer-pattern)
++ [Basic Usage](#basic-usage)
+  - [Server-Side](#server-side)
+  - [Client-Side](#client-side)
++ [Advanced Usage](#advanced-usage)
+  - [Subscribe to groups](#subscribe-to-groups)
+  - [Permissions](#permissions)
+  - [Conditional Serializer Pattern](#conditional-serializer-pattern)
+  - [Testing](#testing)
+    * [`setUp` and `tearDown`](#setup-and-teardown)
+    * [Authentication](#authentication)
 * [Limitations](#limitations)
 
 ## Inspiration and Goals
@@ -27,7 +30,7 @@ any existing REST Framework views or serializers.
 `django-rest-live` took initial inspiration from [this article by Kit La Touche](https://www.oddbird.net/2018/12/12/channels-and-drf/).
 
 ## Dependencies
-- [Django](https://github.com/django/django/) (3.0 and up)
+- [Django](https://github.com/django/django/) (3.1 and up)
 - [Django Channels](https://github.com/django/channels) (2.x, 3.0 not yet supported) 
 - [Django REST Framework](https://github.com/encode/django-rest-framework/)
 - [`channels_redis`](https://github.com/django/channels_redis) for
@@ -53,10 +56,16 @@ INSTALLED_APPS = [
 2. Add `rest_live.consumers.SubscriptionConsumer` to your websocket routing. Feel'
 free to choose any URL path, here we've chosen `/ws/subscribe/`. 
 ```python
+from channels.auth import AuthMiddlewareStack
+from channels.routing import ProtocolTypeRouter, URLRouter
+from django.urls import path
 from rest_live.consumers import SubscriptionConsumer
 
-websockets = URLRouter(
-    [path("ws/subscribe/", SubscriptionConsumer, name="subscriptions")]
+websockets = AuthMiddlewareStack(
+    URLRouter([
+        path("ws/subscribe/", SubscriptionConsumer, name="subscriptions"), 
+        "Other routing here...",
+    ])
 )
 application = ProtocolTypeRouter({
     "websocket": websockets
@@ -258,6 +267,83 @@ class NoAuthTaskSerializer(serializers.ModelSerializer):
 ```
 Clients in both situations would send the same subscribe request, but would receive different model instances depending
 on their authentication status. 
+
+#### Testing
+As of Django 3.1, you can write asynchronous tests in Django `TestCase`s. You can set up a test case by following
+the snippet below, adapted from the [`channels` documentation](https://channels.readthedocs.io/en/stable/topics/testing.html#setting-up-async-tests):
+
+```python
+from django.test import TransactionTestCase
+from channels.testing import WebsocketCommunicator
+from app.routing import application  # Replace this line with the import to your ASGI router.
+from channels.db import database_sync_to_async
+
+class MyTests(TransactionTestCase):
+    async def test_subscribe(self):
+        client = WebsocketCommunicator(application, "/ws/subscribe/")
+        await client.send_json_to(
+            {
+                "model": "app.Model",
+                "property": "pk",
+                "value": "1",
+            }
+        )
+        self.assertTrue(await client.receive_nothing())
+        await database_sync_to_async(Model.objects.create)(...)
+        response = await client.receive_json_from()
+        self.assertEqual(response, {
+            "model": "app.Model",
+            "instance": { "": "..." },
+            "action": "CREATED",
+            "group_key_value": "...",
+        })
+        await client.disconnect()
+```
+
+Since REST Live makes use of the database for its functionality, make sure to use `django.test.TransactionTestCase`
+instead of `django.test.TestCase` so that database connections within the async test functions get cleaned up approprately.
+
+Remember to wrap all ORM calls in the `database_sync_to_async` decorator as demonstrated in the above example. The ORM
+is still fully synchronous, and the regular `sync_to_async` decorator does not properly clean up connections!
+
+##### setUp and tearDown
+The normal `TestCase.setUp` and `TestCase.tearDown` methods run in different threads from the actual test itself,
+and so they don't work for creating async objects like `WebsocketCommunicator`. REST Live comes with a decorator called
+`@async_test` which will enable test cases to define lifecycle methods `asyncSetUp()` and `asyncTearDown()` to
+run certain code before and after every test case decorated with `@async_test`. Here is an example:
+
+```python
+...
+from rest_live.testing import async_test
+class MyTests(TransactionTestCase):
+    
+    async def asyncSetUp(self):
+        self.client = WebsocketCommunicator(application, "/ws/subscribe/")
+    
+    async def asyncTearDown(self):
+        await self.client.disconnect()
+        
+    @async_test
+    async def test_subscribe(self):
+        ...  # a new connection has been opened and is accessible in `self.client`
+```
+
+##### Authentication
+Authentication in unit tests for django channels is a bit tricky, but the utility that `rest_live` provides
+is based on this [github issue comment](https://github.com/django/channels/issues/903#issuecomment-365735926).
+
+The `WebsocketCommunicator` class can take HTTP headers as part of its constructor. In order to open a connection
+as a logged-in user, you can use `rest_live.testing.get_headers_for_user`:
+
+```python
+from rest_live.testing import get_headers_for_user
+
+user = await database_sync_to_async(User.objects.create_user)(username="test")
+headers = await get_headers_for_user(user)
+client = WebsocketCommunicator(application, "/ws/subscribe/", headers)
+```
+
+All permissions checks should work as expected after opening a connection this way.
 
 ## Limitations
 This package works by listening in on model lifecycle events sent off by Django's [signal dispatcher](https://docs.djangoproject.com/en/3.1/topics/signals/).

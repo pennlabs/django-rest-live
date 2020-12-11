@@ -30,7 +30,9 @@ def __register_subscription(
 
 
 def subscribable(
-    group_key: str = DEFAULT_GROUP_KEY, check_permission: PermissionLambda = None, rank=0
+    group_key: str = DEFAULT_GROUP_KEY,
+    check_permission: PermissionLambda = None,
+    rank=0,
 ):
     def decorator(cls):
         if issubclass(cls, serializers.ModelSerializer):
