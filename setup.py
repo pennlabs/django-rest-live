@@ -40,7 +40,7 @@ setup(
     description="Subscriptions for Django REST Framework over Websockets.",
     long_description=DESCRIPTION,
     long_description_content_type="text/markdown",
-    install_requires=["django>=3.1.0", "channels>=2.0.0,<3", "djangorestframework"],
+    install_requires=["django>=3.1.0", "channels>=2.0.0", "djangorestframework"],
     classifiers=[
         "Framework :: Django",
         "Programming Language :: Python",
