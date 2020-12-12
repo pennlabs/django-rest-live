@@ -31,7 +31,7 @@ any existing REST Framework views or serializers.
 
 ## Dependencies
 - [Django](https://github.com/django/django/) (3.1 and up)
-- [Django Channels](https://github.com/django/channels) (2.x, 3.0 not yet supported) 
+- [Django Channels](https://github.com/django/channels) (2.x and 3.0 both supporoted) 
 - [Django REST Framework](https://github.com/encode/django-rest-framework/)
 - [`channels_redis`](https://github.com/django/channels_redis) for
   [channel layer](https://channels.readthedocs.io/en/latest/topics/channel_layers.html) support in production.
