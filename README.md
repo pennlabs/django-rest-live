@@ -231,26 +231,26 @@ In this case, we're grouping by the `list_id` of the list we'd like to get updat
 }
 ```
 
-This will subscribe you to updates for all Tasks in the list which has ID 14.
+This will subscribe you to updates for every Task in the list with ID 14.
 
 What's important to remember here is that while the field is defined as a `ForeignKey` called `list` on the model,
 the underlying integer field in the database that links together Tasks and Lists is called `list_id`. More generally,
-`<fieldname>_id` for any related fieldname on the model.
+`<fieldname>_id` for any foreign key fieldname on the model.
 
-Just note that clients which subscribe to list updates and individual pk updates will receive two messages when a task
-updates.
-
-### Request objects and view kwargs
-Django REST Framework makes heavy use of Django's built-in `Request` object as a general context throughout
-the framework --  [permissions](https://www.django-rest-framework.org/api-guide/permissions/) are a good example --
-each permission check gets passed the `request` object along with the current `view` in order to verify if
+### Request objects and view keyword arguments
+Django REST Framework makes heavy use of the [`Request`](https://www.django-rest-framework.org/api-guide/requests/)
+object as a general context throughout the framework -- 
+[permissions](https://www.django-rest-framework.org/api-guide/permissions/) are a good example -- each permission check
+gets passed the `request` object along with the current `view` in order to verify if
 a given request has permission to view an object. 
 
-However, since broadcasts do not originate from an HTTP request, but from database updates, `django-rest-live` needs
-to infer many of these properties, since they are not explicly set in an actual request.
+However, broadcasts originate from database updates rather than an HTTP request, so
+`django-rest-live` needs to infer many of these properties which "think" they are coming from HTTP.
 
-`request.user` and `request.session` are available as expected. One item that can't be inferred, however, are
-view keyword arguments, normally derived from URL parameters defined a url configuration in a `urls.py` file.
+Since `django-rest-live` deals with readonly updates. The `request` object is looks like a `GET` request
+with no extra parameters. `request.user` and `request.session` are available as expected. One thing that can't be
+inferred, however, are [view keyword arguments](https://docs.djangoproject.com/en/3.1/ref/urls/#django.urls.path),
+normally derived from URL patterns in HTTP requests.
 `django-rest-live` allows you to define view arguments in your subscription request using the `arguments` key:
 
 ```json
@@ -262,6 +262,8 @@ view keyword arguments, normally derived from URL parameters defined a url confi
   }
 }
 ```
+As a rule of thumb, if you have angle brackets in your URL pattern, then you're providing your view with keyword
+arguments, and you probably need to provide those arguments to your ViewSet subscriptions too.
 
 While we believe we support a useful subset of fields on `request` and `view` objects, we know there are many
 patterns for using REST Framework. If you're getting an `AttributeError` in your `ViewSet` when receiving a broadcast
@@ -349,6 +351,6 @@ client = WebsocketCommunicator(application, "/ws/subscribe/", headers)
 
 - [x] Permissions 
 - [x] Conditional Serializers
-- [ ] Permissions helpers for DRF `Permission` classes
-- [ ] Error handling and reporting
+- [x] Permissions helpers for DRF `Permission` classes
+- [x] Error handling and reporting
 - [ ] Expand related fields from `field` to `field_id`
