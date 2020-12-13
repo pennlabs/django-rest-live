@@ -14,6 +14,11 @@ from tests.utils import RestLiveTestCase
 
 User = get_user_model()
 
+"""
+TODO for tests
+- Test inferring model class from static model serializer
+- 
+"""
 
 class BasicTests(RestLiveTestCase):
     async def asyncSetUp(self):

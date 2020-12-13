@@ -9,10 +9,10 @@ from rest_framework.viewsets import ModelViewSet
 from rest_live import get_group_name, CREATED, UPDATED
 
 
-def _send_update(sender_model, instance, action, broadcast_fields):
+def _send_update(sender_model, instance, action, group_by_fields):
     model_label = sender_model._meta.label  # noqa
     channel_layer = get_channel_layer()
-    for group_by_field in broadcast_fields:
+    for group_by_field in group_by_fields:
         field_value = getattr(instance, group_by_field)
         group_name = get_group_name(model_label, group_by_field, field_value)
         async_to_sync(channel_layer.group_send)(
@@ -38,7 +38,7 @@ class FakeRequest:
 
 class RealtimeMixin(object):
     model_class = None
-    group_by_fields = ["id"]
+    group_by_fields = ["pk"]
     _broadcast_actions = None
 
     def get_model_class(self):
@@ -67,11 +67,11 @@ class RealtimeMixin(object):
     def register_realtime(cls):
         viewset = cls()
         model_class = viewset.model_class
-        broadcast_fields = viewset.group_by_fields
+        group_by_fields = viewset.group_by_fields
 
         def save_callback(sender, instance, created, **kwargs):
             _send_update(
-                sender, instance, CREATED if created else UPDATED, broadcast_fields
+                sender, instance, CREATED if created else UPDATED, group_by_fields
             )
         post_save.connect(
             save_callback, sender=model_class, weak=False, dispatch_uid="rest-live"
@@ -96,14 +96,13 @@ class RealtimeMixin(object):
 
             # TODO: If group_by_field is any field with a unique=True on the model,
             if group_by_field == "pk" or group_by_field == "id":
-                viewset_action = "retrieve"
+                self.action = "retrieve"
             else:
-                viewset_action = "list"
+                self.action = "list"
 
-            self.action = viewset_action
             for permission in self.get_permissions():
                 # per-object permissions only checked for non-list actions.
-                if viewset_action != "list":
+                if self.action != "list":
                     if not permission.has_object_permission(request, self, instance):
                         return None
                 if not permission.has_permission(request, self):
