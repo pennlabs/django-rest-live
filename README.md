@@ -234,33 +234,32 @@ gets passed the `request` object along with the current `view` in order to verif
 a given request has permission to view an object. 
 
 However, broadcasts originate from database updates rather than an HTTP request, so
-`django-rest-live` needs to infer many of these properties which "think" they are coming from HTTP.
-
-Since `django-rest-live` deals with readonly updates, the `request` object looks like a `GET` request
-with no extra parameters. `request.user` and `request.session` are available as expected. `view.action` is `retrieve` 
-when the group-by field is either `pk` or `id`, and `list` otherwise.
+`django-rest-live` uses the HTTP request that establishes the websocket connection as a basis for the `request`
+object accessible in views, permissions and serializers. `request.user` and `request.session`, normally populated
+via middleware, are available as expected. `view.action` is `retrieve` when the group-by field is either `pk` or `id`,
+and `list` otherwise.
 
 Something that can't be
 inferred, however, are [view keyword arguments](https://docs.djangoproject.com/en/3.1/ref/urls/#django.urls.path),
-normally derived from URL patterns in HTTP requests.
-`django-rest-live` allows you to define view arguments in your subscription request using the `arguments` key:
+normally derived from the URL path to a resource in HTTP requests.
+`django-rest-live` allows you to declare view arguments in your subscription request using the `arguments` key:
 
 ```json
 {
   "request_id": 1339,
   "model": "todolist.Task",
+  "value": 29,
   "arguments": {
     "list": 14 
   }
 }
 ```
-As a rule of thumb, if you have angle brackets in your URL pattern for your View, [PROVIDE EXAMPLE]
-then you're providing your view with
-keyword arguments, and you probably need to provide those arguments to your View when requesting subscriptions too.
+As a rule of thumb, if you have angle brackets in your URL pattern, like `title` in 
+`path('articles/<slug:title>/', views.article)`, then you're providing your view with
+keyword arguments, and you most likely need to provide those arguments to your View when requesting subscriptions too.
 
-While we believe we support a useful subset of fields on `request` and `view` objects, we know there are many
-patterns for using REST Framework. If you're getting an `AttributeError` in your View when receiving a broadcast
-but not when doing normal HTTP REST operations, then you're probably using an attribute we didn't think of. In that case,
+If you're getting an `AttributeError` in your View when receiving a broadcast but not when doing normal HTTP REST
+operations, then you're probably making use of an attribute we didn't think of. In that case,
 please open an issue describing your use case! It'll go a long way to making this library more useful to all. 
 
 ## Testing
