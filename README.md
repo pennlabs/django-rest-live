@@ -8,21 +8,18 @@
 by leveraging websocket support provided by [Django Channels](https://github.com/django/channels).
 
 ## Contents
-* [Inspiration and Goals](#inspiration-and-goals)
-* [Dependencies](#dependencies)
-* [Installation](#installation)
-* [Usage](#usage)
-+ [Basic Usage](#basic-usage)
-  - [Server-Side](#server-side)
-  - [Client-Side](#client-side)
-+ [Advanced Usage](#advanced-usage)
-  - [Subscribe to groups](#subscribe-to-groups)
-  - [Permissions](#permissions)
-  - [Conditional Serializer Pattern](#conditional-serializer-pattern)
-  - [Testing](#testing)
-    * [`setUp` and `tearDown`](#setup-and-teardown)
-    * [Authentication](#authentication)
-* [Limitations](#limitations)
+- [Inspiration and Goals](#inspiration-and-goals)
+- [Dependencies](#dependencies)
+- [Installation](#installation)
+- [Usage](#usage)
+  * [Basic Usage](#basic-usage)
+    + [Server-Side](#server-side)
+    + [Client-Side](#client-side)
+  * [Grouped subscriptions](#grouped-subscriptions)
+  * [Request objects and view kwargs](#request-objects-and-view-kwargs)
+- [Testing](#testing)
+  * [setUp and tearDown](#setup-and-teardown)
+  * [Authentication](#authentication)
 
 ## Inspiration and Goals
 The goal of this project is to enable realtime subscriptions without requiring any boilerplate or changing
