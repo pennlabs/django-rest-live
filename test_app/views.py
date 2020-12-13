@@ -8,13 +8,13 @@ from test_app.serializers import TodoSerializer, AuthedTodoSerializer
 
 
 class TodoViewSet(viewsets.ModelViewSet, RealtimeMixin):
+    queryset = Todo.objects.all()
     serializer_class = TodoSerializer
-    model_class = Todo
     group_by_fields = ["pk", "list_id"]
 
 
 class ConditionalTodoViewSet(viewsets.ModelViewSet, RealtimeMixin):
-    model_class = Todo
+    queryset = Todo.objects.all()
     group_by_fields = ["pk", "list_id"]
 
     def get_serializer_class(self):
@@ -25,7 +25,7 @@ class ConditionalTodoViewSet(viewsets.ModelViewSet, RealtimeMixin):
 
 
 class AuthedTodoViewSet(viewsets.ModelViewSet, RealtimeMixin):
-    model_class = Todo
-    group_by_fields = ["pk", "list_id"]
+    queryset = Todo.objects.all()
     serializer_class = TodoSerializer
     permission_classes = [IsAuthenticated]
+    group_by_fields = ["pk", "list_id"]

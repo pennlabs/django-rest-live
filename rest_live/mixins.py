@@ -37,18 +37,11 @@ class FakeRequest:
 
 
 class RealtimeMixin(object):
-    model_class = None
     group_by_fields = ["pk"]
 
     def get_model_class(self):
-        if self.model_class is not None:
-            return self.model_class
-
-        if self.serializer_class is not None:
-            return self.serializer_class.Meta.model
-        else:
-            raise AssertionError("model cannot be inferred from dynamic get_serializer_class."
-                                 "Either explicitliy define model_class or serializer_class on the ViewSet.")
+        qs = self.get_queryset()
+        return qs.model
 
     def _get_model_class_label(self):
         return self.get_model_class()._meta.label  # noqa
@@ -56,13 +49,14 @@ class RealtimeMixin(object):
     @classmethod
     def register_realtime(cls):
         viewset = cls()
-        model_class = viewset.model_class
+        model_class = viewset.get_model_class()
         group_by_fields = viewset.group_by_fields
 
         def save_callback(sender, instance, created, **kwargs):
             _send_update(
                 sender, instance, CREATED if created else UPDATED, group_by_fields
             )
+
         post_save.connect(
             save_callback, sender=model_class, weak=False, dispatch_uid="rest-live"
         )
@@ -72,17 +66,24 @@ class RealtimeMixin(object):
     def as_broadcast(cls, **initkwargs):
         def broadcast(instance_pk, group_by_field, user, session, **kwargs):
             self = cls(**initkwargs)
-            model = self.get_model_class()
-            try:
-                instance = model.objects.get(pk=instance_pk)
-            except model.DoesNotExist:
-                return
 
-            request = FakeRequest(user, session=session, method="GET", content_type="application/json", GET=dict(), query_params=dict())
-
+            request = FakeRequest(
+                user,
+                session=session,
+                method="GET",
+                content_type="application/json",
+                GET=dict(),
+                query_params=dict(),
+            )
             self.request = request
             self.args = []
             self.kwargs = kwargs
+
+            model = self.get_model_class()
+            try:
+                instance = self.get_queryset().get(pk=instance_pk)
+            except model.DoesNotExist:
+                return
 
             # TODO: If group_by_field is any field with a unique=True on the model,
             if group_by_field == "pk" or group_by_field == "id":

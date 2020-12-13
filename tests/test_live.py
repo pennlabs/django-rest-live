@@ -26,16 +26,14 @@ class BasicTests(RestLiveTestCase):
         router = RealtimeRouter()
         router.register(TodoViewSet)
 
-        self.communicator = WebsocketCommunicator(
-            router.consumer, "/ws/subscribe/"
-        )
-        connected, _ = await self.communicator.connect()
+        self.client = WebsocketCommunicator(router.consumer, "/ws/subscribe/")
+        connected, _ = await self.client.connect()
         self.assertTrue(connected)
         self.list = await db(List.objects.create)(name="test list")
         # register_subscription(TodoSerializer, "list_id", None)
 
     async def asyncTearDown(self):
-        await self.communicator.disconnect()
+        await self.client.disconnect()
 
     @async_test
     async def test_list_subscribe_create(self):
@@ -52,7 +50,7 @@ class BasicTests(RestLiveTestCase):
         await self.assertReceivedUpdateForTodo(new_todo, CREATED, req)
         await self.unsubscribe(req)
         await self.make_todo()
-        self.assertTrue(await self.communicator.receive_nothing())
+        self.assertTrue(await self.client.receive_nothing())
 
     @async_test
     async def test_list_unsubscribe_does_stack(self):
@@ -63,7 +61,7 @@ class BasicTests(RestLiveTestCase):
         new_todo = await self.make_todo()
         await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1)
         await self.assertReceivedUpdateForTodo(new_todo, CREATED, req2)
-        self.assertTrue(await self.communicator.receive_nothing())
+        self.assertTrue(await self.client.receive_nothing())
 
         # Unsubscribe once, make sure the message is still sent on update.
         await self.unsubscribe(req1)
@@ -75,7 +73,7 @@ class BasicTests(RestLiveTestCase):
         await self.unsubscribe(req2)
         new_todo.text = "changed"
         await db(new_todo.save)()
-        self.assertTrue(await self.communicator.receive_nothing())
+        self.assertTrue(await self.client.receive_nothing())
 
     @async_test
     async def test_list_subscribe_update(self):
@@ -101,72 +99,78 @@ class PermissionsTests(RestLiveTestCase):
         self.list = await db(List.objects.create)(name="test list")
         router = RealtimeRouter()
         router.register(AuthedTodoViewSet)
-        self.communicator = WebsocketCommunicator(
+        self.client = WebsocketCommunicator(
             AuthMiddlewareStack(router.consumer),
             "/ws/subscribe/",
         )
-        connected, _ = await self.communicator.connect()
+        connected, _ = await self.client.connect()
         self.assertTrue(connected)
 
         self.user = await db(User.objects.create_user)("test")
         headers = await get_headers_for_user(self.user)
-        self.auth_communicator = WebsocketCommunicator(
+        self.auth_client = WebsocketCommunicator(
             AuthMiddlewareStack(router.consumer),
             "/ws/subscribe/",
             headers,
         )
-        connected, _ = await self.auth_communicator.connect()
+        connected, _ = await self.auth_client.connect()
         self.assertTrue(connected)
 
     async def asyncTearDown(self):
-        await self.communicator.disconnect()
-        await self.auth_communicator.disconnect()
+        await self.client.disconnect()
+        await self.auth_client.disconnect()
 
     @async_test
     async def test_list_sub_no_permission(self):
         await self.subscribe_to_list()
         await self.make_todo()
-        self.assertTrue(await self.communicator.receive_nothing())
+        self.assertTrue(await self.client.receive_nothing())
 
     @async_test
     async def test_list_sub_with_permission(self):
-        req = await self.subscribe_to_list(self.auth_communicator)
+        req = await self.subscribe_to_list(self.auth_client)
         new_todo = await self.make_todo()
         await self.assertReceivedUpdateForTodo(
-            new_todo, CREATED, req, communicator=self.auth_communicator
+            new_todo, CREATED, req, communicator=self.auth_client
         )
 
     @async_test
     async def test_list_sub_conditional_serializers(self):
-        await self.communicator.disconnect()
-        await self.auth_communicator.disconnect()
+        await self.client.disconnect()
+        await self.auth_client.disconnect()
         router = RealtimeRouter()
         router.register(ConditionalTodoViewSet)
-        self.communicator = WebsocketCommunicator(
+        self.client = WebsocketCommunicator(
             AuthMiddlewareStack(router.consumer),
             "/ws/subscribe/",
         )
-        connected, _ = await self.communicator.connect()
+        connected, _ = await self.client.connect()
         self.assertTrue(connected)
 
         headers = await get_headers_for_user(self.user)
-        self.auth_communicator = WebsocketCommunicator(
+        self.auth_client = WebsocketCommunicator(
             AuthMiddlewareStack(router.consumer),
             "/ws/subscribe/",
             headers,
         )
-        connected, _ = await self.auth_communicator.connect()
+        connected, _ = await self.auth_client.connect()
         self.assertTrue(connected)
 
-        req = await self.subscribe_to_list(self.communicator)
-        req_auth = await self.subscribe_to_list(self.auth_communicator)
+        req = await self.subscribe_to_list(self.client)
+        req_auth = await self.subscribe_to_list(self.auth_client)
         new_todo = await self.make_todo()
 
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req, communicator=self.communicator)
         await self.assertReceivedUpdateForTodo(
-            new_todo, CREATED, req_auth, communicator=self.auth_communicator, serializer=AuthedTodoSerializer
+            new_todo, CREATED, req, communicator=self.client
+        )
+        await self.assertReceivedUpdateForTodo(
+            new_todo,
+            CREATED,
+            req_auth,
+            communicator=self.auth_client,
+            serializer=AuthedTodoSerializer,
         )
 
         # Assert that each connection has only received a single update.
-        self.assertTrue(await self.communicator.receive_nothing())
-        self.assertTrue(await self.auth_communicator.receive_nothing())
+        self.assertTrue(await self.client.receive_nothing())
+        self.assertTrue(await self.auth_client.receive_nothing())

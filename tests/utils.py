@@ -14,20 +14,20 @@ db = database_sync_to_async
 
 
 class RestLiveTestCase(TransactionTestCase):
-    communicator: WebsocketCommunicator
+    client: WebsocketCommunicator
     list: List
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.counter = 0
 
-    async def subscribe(self, model, group_by, value, communicator=None):
+    async def subscribe(self, model, group_by, value, client=None):
         self.counter += 1
         request_id = self.counter
 
-        if communicator is None:
-            communicator = self.communicator
-        await communicator.send_json_to(
+        if client is None:
+            client = self.client
+        await client.send_json_to(
             {
                 "request_id": request_id,
                 "model": model,
@@ -35,23 +35,23 @@ class RestLiveTestCase(TransactionTestCase):
                 "value": value,
             }
         )
-        self.assertTrue(await communicator.receive_nothing())
+        self.assertTrue(await client.receive_nothing())
         return request_id
 
-    async def unsubscribe(self, request_id, communicator=None):
-        if communicator is None:
-            communicator = self.communicator
-        await communicator.send_json_to(
+    async def unsubscribe(self, request_id, client=None):
+        if client is None:
+            client = self.client
+        await client.send_json_to(
             {
                 "request_id": request_id,
                 "unsubscribe": True,
             }
         )
-        self.assertTrue(await communicator.receive_nothing())
+        self.assertTrue(await client.receive_nothing())
 
     async def assertResponseEquals(self, expected, communicator=None):
         if communicator is None:
-            communicator = self.communicator
+            communicator = self.client
         response = await communicator.receive_json_from()
         self.assertDictEqual(response, expected)
 
@@ -67,7 +67,9 @@ class RestLiveTestCase(TransactionTestCase):
         }
 
     async def subscribe_to_list(self, communicator=None):
-        return await self.subscribe("test_app.Todo", "list_id", self.list.pk, communicator)
+        return await self.subscribe(
+            "test_app.Todo", "list_id", self.list.pk, communicator
+        )
 
     async def make_todo(self):
         return await db(Todo.objects.create)(list=self.list, text="test")

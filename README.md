@@ -125,6 +125,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_live.mixins import RealtimeMixin
 
 class TaskViewSet(ModelViewSet, RealtimeMixin):
+    queryset = Task.objects.all()
     serializer_class = TaskSerializer
 ```
 
@@ -132,18 +133,6 @@ Note that throughout this documentation we use `ViewSet`s as our base class. It'
 works just as well with any [generic view](https://www.django-rest-framework.org/api-guide/generic-views/)
 that defines a [`get_serializer_class()`](https://www.django-rest-framework.org/api-guide/generic-views/#attributes)
 method.
-
-For `django-rest-live` to properly listen for model updates, it needs to be able to infer a View's underlying
-model class. To do so, `serializer_class` needs to be defined directly on the view. You'll receive a runtime error if
-the model class cannot be inferred. If you rely on `get_serializer_class()` in your View for dynamically
-setting the serializer, then you should explicitly define the `model_class` property:
-
-```python
-class TaskViewSet(ModelViewSet, RealtimeMixin):
-    model_class = Task
-    def get_serializer_class(self):
-        ...
-```
 
 The last backend step is to register your View in the `RealtimeRouter` you defined in the first setup step:
 
@@ -239,19 +228,19 @@ the underlying integer field in the database that links together Tasks and Lists
 
 ### Request objects and view keyword arguments
 Django REST Framework makes heavy use of the [`Request`](https://www.django-rest-framework.org/api-guide/requests/)
-object as a general context throughout the framework -- 
-[permissions](https://www.django-rest-framework.org/api-guide/permissions/) are a good example -- each permission check
+object as a general context throughout the framework.
+[permissions](https://www.django-rest-framework.org/api-guide/permissions/) are a good example: each permission check
 gets passed the `request` object along with the current `view` in order to verify if
 a given request has permission to view an object. 
 
 However, broadcasts originate from database updates rather than an HTTP request, so
 `django-rest-live` needs to infer many of these properties which "think" they are coming from HTTP.
 
-Since `django-rest-live` deals with readonly updates, the `request` object is looks like a `GET` request
+Since `django-rest-live` deals with readonly updates, the `request` object looks like a `GET` request
 with no extra parameters. `request.user` and `request.session` are available as expected. `view.action` is `retrieve` 
 when the group-by field is either `pk` or `id`, and `list` otherwise.
 
-One thing that can't be
+Something that can't be
 inferred, however, are [view keyword arguments](https://docs.djangoproject.com/en/3.1/ref/urls/#django.urls.path),
 normally derived from URL patterns in HTTP requests.
 `django-rest-live` allows you to define view arguments in your subscription request using the `arguments` key:
@@ -265,7 +254,8 @@ normally derived from URL patterns in HTTP requests.
   }
 }
 ```
-As a rule of thumb, if you have angle brackets in your URL pattern for your View, then you're providing your view with
+As a rule of thumb, if you have angle brackets in your URL pattern for your View, [PROVIDE EXAMPLE]
+then you're providing your view with
 keyword arguments, and you probably need to provide those arguments to your View when requesting subscriptions too.
 
 While we believe we support a useful subset of fields on `request` and `view` objects, we know there are many
@@ -286,6 +276,8 @@ from channels.db import database_sync_to_async
 class MyTests(TransactionTestCase):
     async def test_subscribe(self):
         client = WebsocketCommunicator(application, "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
         await client.send_json_to(
             {
                 "request_id": 1337,
@@ -325,6 +317,8 @@ class MyTests(TransactionTestCase):
     
     async def asyncSetUp(self):
         self.client = WebsocketCommunicator(application, "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
     
     async def asyncTearDown(self):
         await self.client.disconnect()
@@ -349,6 +343,7 @@ from rest_live.testing import get_headers_for_user
 user = await database_sync_to_async(User.objects.create_user)(username="test")
 headers = await get_headers_for_user(user)
 client = WebsocketCommunicator(appliction, "/ws/subscribe/", headers)
+...
 ```
 
 ## Note on Django signals
