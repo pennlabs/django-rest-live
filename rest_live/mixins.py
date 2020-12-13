@@ -4,12 +4,8 @@ from asgiref.sync import async_to_sync
 from channels.http import AsgiRequest
 from channels.layers import get_channel_layer
 from django.db.models.signals import post_save
-from django.http import HttpRequest
 from django.utils.decorators import classonlymethod
 from djangorestframework_camel_case.util import camelize
-from rest_framework.permissions import AllowAny
-from rest_framework.request import Request
-from rest_framework.viewsets import ModelViewSet
 
 from rest_live import get_group_name, CREATED, UPDATED
 
@@ -32,13 +28,6 @@ def _send_update(sender_model, instance, action, group_by_fields):
                 "channel_name": group_name,
             },
         )
-
-
-class FakeRequest:
-    def __init__(self, user, **kwargs):
-        self.user = user
-        for k, v in kwargs.items():
-            setattr(self, k, v)
 
 
 class RealtimeMixin(object):
