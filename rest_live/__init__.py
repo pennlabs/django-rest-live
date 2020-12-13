@@ -1,7 +1,12 @@
 default_app_config = "rest_live.apps.RestLiveConfig"
 
-DEFAULT_GROUP_KEY = "pk"
+DEFAULT_GROUP_BY_FIELD = "pk"
 
 
-def get_group_name(model_label, value, key_prop) -> str:
-    return f"RESOURCE-{model_label}-{key_prop}-{value}"
+def get_group_name(model_label, broadcast_field, field_value) -> str:
+    return f"RESOURCE-{model_label}-{broadcast_field}-{field_value}"
+
+
+CREATED = "CREATED"
+UPDATED = "UPDATED"
+DELETED = "DELETED"

@@ -29,6 +29,12 @@ The goal of this project is to enable realtime subscriptions without requiring a
 any existing REST Framework views or serializers.
 `django-rest-live` took initial inspiration from [this article by Kit La Touche](https://www.oddbird.net/2018/12/12/channels-and-drf/).
 
+This package works by listening in on model lifecycle events sent off by Django's [signal dispatcher](https://docs.djangoproject.com/en/3.1/topics/signals/).
+Specifically, the [`post_save`](https://docs.djangoproject.com/en/3.1/ref/signals/#post-save)
+and [`post_delete`](https://docs.djangoproject.com/en/3.1/ref/signals/#post-delete) signals. This means that `django-rest-live`
+can only pick up changes that Django knows about. Bulk operations, like `filter().update()`, `bulk_create`
+and `bulk_delete` do not trigger Django's lifecycle signals, so updates will not be sent.
+
 ## Dependencies
 - [Django](https://github.com/django/django/) (3.1 and up)
 - [Django Channels](https://github.com/django/channels) (2.x, 3.0 not yet supported) 
@@ -59,11 +65,13 @@ free to choose any URL path, here we've chosen `/ws/subscribe/`.
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.urls import path
-from rest_live.consumers import SubscriptionConsumer
+from rest_live.consumers import RealtimeRouter
+
+router = RealtimeRouter()
 
 websockets = AuthMiddlewareStack(
     URLRouter([
-        path("ws/subscribe/", SubscriptionConsumer, name="subscriptions"), 
+        path("ws/subscribe/", router.consumer, name="subscriptions"), 
         "Other routing here...",
     ])
 )
@@ -76,7 +84,7 @@ That's it! You're now ready to configure and use `django-rest-live`.
 
 ## Usage
 
-These docs will use an example to-do app called `todolist` with the following models and serializers:
+These docs will use an example to-do app called `todolist` with the following models, serializers:
 ```python
 # todolist/models.py
 from django.db import models
@@ -112,19 +120,42 @@ to get initial data to populate a page, as well as any write-driven behavior (`P
 `django-rest-live` gets rid of the need for periodic GET requests for updated data.
 
 #### Server-Side
-In order to tell `django-rest-live` that you'd like to allow clients to subscribe to updates for a specific model, the package
-provides the `@subscribable` class decorator. This decorator is meant to be applied to `ModelSerializer` subclasses,
-so that the package can register both which models to allow subscriptions to as well as how those models should be
-serialized when being sent to the client. To enable clients to subscribe to updates to individual to-dos, all you need
-to do is apply the decorator to the `TodoSerializer`:
+
+`django-rest-live` extends the existing `ModelViewSet` class using a mixin called `RealtimeMixin`. In order to
+designate your `ViewSet` as a realtime-capable `ViewSet`, add `RealtimeMixin` to its superclasses:
 
 ```python
-# todolist/serializers.py
-from rest_live.decorators import subscribable
-...
-@subscribable()
-class TaskSerializer(serializers.ModelSerializer):
-    ...
+from rest_framework.viewsets import ModelViewSet
+from rest_live.mixins import RealtimeMixin
+
+class TaskViewSet(ModelViewSet, RealtimeMixin):
+    serializer_class = TaskSerializer
+```
+
+For `django-rest-live` to properly listen for model updates, it needs to be able to infer a ViewSet's underlying
+model class. To do so, `serializer_class` needs to be defined on the `ViewSet`. If you rely on `get_serializer_class()`
+in your `ViewSet` for dynamically setting the serializer, then you should define the `model_class` on your `ViewSet`:
+
+```python
+class TaskViewSet(ModelViewSet, RealtimeMixin):
+    model_class = Task
+    def get_serializer_class(self):
+        ...
+```
+
+The last backend step is to register your `ViewSet` in the `RealtimeRouter` you defined in the first setup step:
+
+```python
+from rest_live.consumers import RealtimeRouter
+
+router = RealtimeRouter()
+router.register(TaskViewSet)  # Register all ViewSets here
+
+websockets = AuthMiddlewareStack(
+    URLRouter([
+        path("ws/subscribe/", router.consumer, name="subscriptions"), 
+        "Other routing here...",
+    ])
 ```
 
 #### Client-Side
@@ -134,10 +165,14 @@ is established, send a JSON message (using `JSON.stringify()`) in this format:
 
 ```json5
 {
+  "request_id": 1337,
   "model": "todolist.Task",
   "value": 1 
 }
 ```
+
+You should generate the `request_id` property client side. It's used to track the subscription you request throughout 
+its lifetime -- we'll see below it's referenced both in error messages and broadcasts.
 
 The model label should be in Django's standard `app.modelname` format. `value` field here is set to the value for
 the [primary key](https://docs.djangoproject.com/en/3.1/topics/db/queries/#the-pk-lookup-shortcut) for the model instance
@@ -152,123 +187,85 @@ When the Task with primary key `1` updates, a message in this format will be sen
 
 ```json
 {
+    "type": "broadcast",
+    "request_id": 1337,
     "model": "test_app.Todo",
-    "instance": {"id": 1, "text": "test", "done": true},
     "action": "UPDATED",
-    "group_key_value": 1
+    "instance": {"id": 1, "text": "test", "done": true}
 }
 ```
 
 Valid `action` values are `UPDATED`, `CREATED`, and `DELETED`.
-`group_key_value` might seem erroneous in this example, but is useful for group subscriptions, described in the next
-section.
 
-### Advanced Usage
-
-#### Subscribe to groups
-As mentioned above, subscriptions are grouped by the primary key by default: you send one message to the websocket to get updates for
-a single Task with a given primary key. But in the todo list example, you'd generally be interested in an entire
-list of tasks, including being notified of any tasks which have been created since the page was first loaded.
+### Grouped subscriptions
+As mentioned above, subscriptions are grouped by the primary key by default: you send one message to the websocket to
+get updates for a single Task with a given primary key. But in the todo list example, you'd generally be interested in
+an entire list of tasks, including being notified of any new tasks which have been created since the page was first loaded.
 
 Rather than subscribe all tasks individually, you want to subscribe to a list: an entire group of tasks.
-This is where group keys come in. Pass in the `group_key` you'd like to group tasks by
-to the `@subscribable` decorator to register subscriptions for an entire list:
+`django-rest-live` allows you to specify fields you want to group by using the property `group_by_fields` on the `ViewSet`:
 
 
 ```python
-# todolist/serializers.py
-from rest_live.decorators import subscribable
-...
-@subscribable(group_key="list_id")
-class TaskSerializer(serializers.ModelSerializer):
-    ...
+# todolist/views.py
+from rest_framework.viewsets import ModelViewSet
+from rest_live.mixins import RealtimeMixin
+
+class TaskViewSet(ModelViewSet, RealtimeMixin):
+    serializer_class = TaskSerializer
+    group_by_fields = ["pk", "list_id"]
 ```
 
-On the client side, we now have to specify the group key `property` we are subscribing to. In this case, the `list_id`
-of the list you'd like to get updates from:
+On the client side, we now have to specify the group-by field this subscription is referring to.
+In this case, we're grouping by the `list_id` of the list we'd like to get updates from, the list with id 14:
 
 ```json5
 {
+  "request_id": 1338,
   "model": "todolist.Task",
-  "property": "list_id",
-  "value": 1
+  "group_by": "list_id",
+  "value": 14
 }
 ```
 
-This will subscribe you to updates for all Tasks in the list which has ID 1.
+This will subscribe you to updates for all Tasks in the list which has ID 14.
 
 What's important to remember here is that while the field is defined as a `ForeignKey` called `list` on the model,
 the underlying integer field in the database that links together Tasks and Lists is called `list_id`. More generally,
 `<fieldname>_id` for any related fieldname on the model.
 
-The `subscribable` decorator can be stacked. If you want to enable subscriptions by both `list_id` for entire lists and
-`pk` for individual tasks, add two decorators:
-
-```python
-# todolist/serializers.py
-from rest_live.decorators import subscribable
-...
-@subscribable()
-@subscribable(group_key="list_id")
-class TaskSerializer(serializers.ModelSerializer):
-    ...
-```
-
 Just note that clients which subscribe to list updates and individual pk updates will receive two messages when a task
 updates.
 
+### Request objects and view kwargs
+Django REST Framework makes heavy use of Django's built-in `Request` object as a general context throughout
+the framework --  [permissions](https://www.django-rest-framework.org/api-guide/permissions/) are a good example --
+each permission check gets passed the `request` object along with the current `view` in order to verify if
+a given request has permission to view an object. 
 
-#### Permissions
-The `@subscribable` decorator also takes in a parameter called `check_permission`. This is a function which takes in 
-a User and a model instance and determines whether or not the given user can access the given model. To make sure
-users can only subscribe to lists when they are logged in, this code would suffice:
+However, since broadcasts do not originate from an HTTP request, but from database updates, `django-rest-live` needs
+to infer many of these properties, since they are not explicly set in an actual request.
 
-```python
-# todolist/serializers.py
-from rest_live.decorators import subscribable
+`request.user` and `request.session` are available as expected. One item that can't be inferred, however, are
+view keyword arguments, normally derived from URL parameters defined a url configuration in a `urls.py` file.
+`django-rest-live` allows you to define view arguments in your subscription request using the `arguments` key:
 
-def has_auth(user, instance):
-    return user.is_authenticated
-
-@subscribable(group_key="list_id", check_permission=has_auth)
-class TaskSerializer(serializers.ModelSerializer):
-    ...
+```json
+{
+  "request_id": 1339,
+  "model": "todolist.Task",
+  "arguments": {
+    "list": 14 
+  }
+}
 ```
 
-#### Conditional Serializer Pattern
-A common pattern in Django REST Framework is showing users different serializers based on their authentication status
-by overloading `get_serializer_class()` in a `ViewSet`. This pattern can be mirrored in `django-rest-live`
-using the `check_permission` callback. Let's say that for our to-do app, un-authenticated users can view tasks, but
-cannot see if they're completed. Users can subscribe with the proper serializer with the following `serializers.py`:
+While we believe we support a useful subset of fields on `request` and `view` objects, we know there are many
+patterns for using REST Framework. If you're getting an `AttributeError` in your `ViewSet` when receiving a broadcast
+but not when doing normal HTTP REST operations, then you're probably using an unsupported attribute. In that case,
+please open an issue describing your use case! It'll go a long way to making this library more useful to all. 
 
-```python
-# todolist/serializers.py
-from rest_framework import serializers
-from rest_live.decorators import subscribable
-
-
-def has_auth(user, instance):
-    return user.is_authenticated
-
-def has_no_auth(user, instance):
-    return not has_auth(user, instance)
-
-@subscribable(group_key="list_id", check_permission=has_auth)
-class AuthedTaskSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Task
-        fields = ["id", "text", "done"]
-
-@subscribable(group_key="list_id", check_permission=has_no_auth)
-class NoAuthTaskSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Task
-        fields = ["id", "text"]
-```
-Clients in both situations would send the same subscribe request, but would receive different model instances depending
-on their authentication status. 
-
-#### Testing
+## Testing
 As of Django 3.1, you can write asynchronous tests in Django `TestCase`s. You can set up a test case by following
 the snippet below, adapted from the [`channels` documentation](https://channels.readthedocs.io/en/stable/topics/testing.html#setting-up-async-tests):
 
@@ -284,7 +281,7 @@ class MyTests(TransactionTestCase):
         await client.send_json_to(
             {
                 "model": "app.Model",
-                "property": "pk",
+                "group_by": "pk",
                 "value": "1",
             }
         )
@@ -306,7 +303,7 @@ instead of `django.test.TestCase` so that database connections within the async 
 Remember to wrap all ORM calls in the `database_sync_to_async` decorator as demonstrated in the above example. The ORM
 is still fully synchronous, and the regular `sync_to_async` decorator does not properly clean up connections!
 
-##### setUp and tearDown
+### setUp and tearDown
 The normal `TestCase.setUp` and `TestCase.tearDown` methods run in different threads from the actual test itself,
 and so they don't work for creating async objects like `WebsocketCommunicator`. REST Live comes with a decorator called
 `@async_test` which will enable test cases to define lifecycle methods `asyncSetUp()` and `asyncTearDown()` to
@@ -328,7 +325,9 @@ class MyTests(TransactionTestCase):
         ...  # a new connection has been opened and is accessible in `self.client`
 ```
 
-##### Authentication
+### Authentication
+Make sure to follow the below pattern if you use `request.user` or `request.session` anywhere in your `ViewSet` code.
+
 Authentication in unit tests for django channels is a bit tricky, but the utility that `rest_live` provides
 is based on this [github issue comment](https://github.com/django/channels/issues/903#issuecomment-365735926).
 
@@ -342,15 +341,6 @@ user = await database_sync_to_async(User.objects.create_user)(username="test")
 headers = await get_headers_for_user(user)
 client = WebsocketCommunicator(application, "/ws/subscribe/", headers)
 ```
-
-All permissions checks should work as expected after opening a connection this way.
-
-## Limitations
-This package works by listening in on model lifecycle events sent off by Django's [signal dispatcher](https://docs.djangoproject.com/en/3.1/topics/signals/).
-Specifically, the [`post_save`](https://docs.djangoproject.com/en/3.1/ref/signals/#post-save)
-and [`post_delete`](https://docs.djangoproject.com/en/3.1/ref/signals/#post-delete) signals. This means that `django-rest-live`
-can only pick up changes that Django knows about. Bulk operations, like `filter().update()`, `bulk_create`
-and `bulk_delete` do not trigger Django's lifecycle signals, so updates will not be sent.
 
 ## TODO
 

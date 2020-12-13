@@ -1,95 +1,151 @@
 from typing import Any, Dict, Type, List
 
-from channels.consumer import AsyncConsumer
-from channels.db import database_sync_to_async
-from channels.generic.websocket import AsyncJsonWebsocketConsumer
-from djangorestframework_camel_case.util import camelize
+from asgiref.sync import async_to_sync
+from channels.generic.websocket import AsyncJsonWebsocketConsumer, JsonWebsocketConsumer
 
-from rest_live import DEFAULT_GROUP_KEY, get_group_name
-from rest_live.subscriptionsets import SubscriptionSet
+from rest_live import DEFAULT_GROUP_BY_FIELD, get_group_name
 
 
-def make_consumer(
-    subscription_sets: List[Type[SubscriptionSet]],
-) -> Type[AsyncConsumer]:
-    from django.apps import apps
+class RealtimeRouter:
+    def __init__(self):
+        self.registry = dict()
+        self._broadcasts = None
 
-    subscriptions = {sub.model_label: sub for sub in [s() for s in subscription_sets]}
+    @property
+    def broadcasts(self):
+        if self._broadcasts is None:
+            self._broadcasts = {
+                label: viewset.as_broadcast()
+                for label, viewset in self.registry.items()
+            }
+        return self._broadcasts
 
-    for sub in subscriptions.values():
-        sub.register_signals()
+    def register_all(self, viewsets):
+        for viewset in viewsets:
+            self.register(viewset)
 
-    class SubscriptionConsumer(AsyncJsonWebsocketConsumer):
-        async def connect(self):
-            self.user = self.scope.get("user", None)  # noqa
-            await self.accept()
+    def register(self, viewset):
+        if not hasattr(viewset, "register_realtime"):
+            raise RuntimeError(
+                "ViewSet passed to RealtimeRouter does not have RealtimeMixin applied."
+            )
+        label = viewset.register_realtime()
+        if label in self.registry:
+            raise RuntimeWarning(
+                "You should not register two ViewSets for the same model."
+            )
 
-        async def receive_json(self, content: Dict[str, Any], **kwargs):
-            """
-            Receive a subscription on this consumer.
-            """
+        self.registry[label] = viewset
 
-            model_label = content.get("model")
-            if model_label is None:
-                print("[REST-LIVE] No model")  # TODO: Error message
-                return
+    @property
+    def consumer(self):
+        router = self
 
-            prop = content.get("property", DEFAULT_GROUP_KEY)
-            value = content.get("value", None)
+        class SubscriptionConsumer(JsonWebsocketConsumer):
+            def connect(self):
+                self.user = self.scope.get("user", None)  # noqa
+                self.session = self.scope.get("session", dict())  # noqa
+                self.subscriptions = dict()  # noqa
+                self.kwargs = dict()  # noqa
+                self.accept()
 
-            if value is None:
-                print(f"[REST-LIVE] No value for prop {prop} found.")  # TODO: Error
-                return
-
-            group_name = get_group_name(model_label, value, prop)
-            unsubscribe = content.get("unsubscribe", False)
-
-            if not unsubscribe:
+            def add_subscription(self, group_name, request_id, **kwargs):
                 print(f"[REST-LIVE] got subscription to {group_name}")
+                self.subscriptions.setdefault(group_name, []).append(request_id)
                 self.groups.append(group_name)
-                await self.channel_layer.group_add(group_name, self.channel_name)
-            else:
-                print(f"[REST-LIVE] got unsubscribe for {group_name}")
+                self.kwargs[request_id] = kwargs
+                async_to_sync(self.channel_layer.group_add)(
+                    group_name, self.channel_name
+                )
+
+            def remove_subscription(self, request_id):
+                try:
+                    group_name = [
+                        k for k, v in self.subscriptions.items() if request_id in v
+                    ][0]
+                except IndexError:
+                    self.send_error(
+                        request_id,
+                        400,
+                        "Attempted to unsubscribe for request ID before subscribing.",
+                    )
+                    return
+                if group_name not in self.subscriptions:
+                    return
+
+                self.subscriptions[group_name].remove(request_id)
                 self.groups.remove(group_name)
                 if group_name not in self.groups:
-                    await self.channel_layer.group_discard(
+                    async_to_sync(self.channel_layer.group_discard)(
                         group_name, self.channel_name
                     )
+                if len(self.subscriptions[group_name]) == 0:
+                    del self.subscriptions[group_name]
 
-        async def notify(self, event):
-            group_by_field = event["group_by_field"]
-            field_value = event["field_value"]
-            instance_pk = event["instance_pk"]
-            action = event["action"]
-            model_label = event["model"]
+            def send_error(self, request_id, code, message):
+                self.send_json(
+                    {
+                        "type": "error",
+                        "request_id": request_id,
+                        "code": code,
+                        "message": message,
+                    }
+                )
 
-            subscription_set: SubscriptionSet = subscriptions.get(model_label)
-            if subscription_set is None:
-                return  # Error: subscription set not found
+            def send_broadcast(self, request_id, model_label, action, instance_data):
+                self.send_json(
+                    {
+                        "type": "broadcast",
+                        "request_id": request_id,
+                        "model": model_label,
+                        "action": action,
+                        "instance": instance_data,
+                    }
+                )
 
-            model = apps.get_model(model_label)
-            instance = await database_sync_to_async(model.objects.get)(
-                **{"pk": instance_pk}
-            )
-            has_permission = await database_sync_to_async(
-                subscription_set.has_object_permission
-            )(self.user, instance)
-            if not has_permission:
-                return
+            def receive_json(self, content: Dict[str, Any], **kwargs):
+                request_id = content.get("request_id", None)
+                if request_id is None:
+                    return  # Can't send error message without request ID.
+                unsubscribe = content.get("unsubscribe", False)
+                if not unsubscribe:
+                    model_label = content.get("model")
+                    if model_label is None:
+                        self.send_error(request_id, 400, "No model specified")
+                        return
 
-            serializer_class = subscription_set.get_serializer_class(
-                self.user, instance
-            )
-            serialized = await database_sync_to_async(
-                lambda: serializer_class(instance).data
-            )()
-            await self.send_json(
-                {
-                    "model": model_label,
-                    "action": action,
-                    "group_key_value": field_value,
-                    "instance": camelize(serialized),
-                }
-            )
+                    group_by_field = content.get("group_by", DEFAULT_GROUP_BY_FIELD)
+                    value = content.get("value", None)
 
-    return SubscriptionConsumer
+                    if value is None:
+                        self.send_error(
+                            request_id, 400, f"No value specified in subscription"
+                        )
+                        return
+
+                    group_name = get_group_name(model_label, group_by_field, value)
+                    kwargs = content.get("kwargs", dict())
+                    self.add_subscription(group_name, request_id, **kwargs)
+                else:
+                    self.remove_subscription(request_id)
+
+            def notify(self, event):
+                channel_name = event["channel_name"]
+                group_by_field = event["group_by_field"]
+                instance_pk = event["instance_pk"]
+                action = event["action"]
+                model_label = event["model"]
+
+                make_broadcast = router.broadcasts[model_label]
+
+                for request_id in self.subscriptions[channel_name]:
+                    kwargs = self.kwargs.get(request_id, dict())
+                    instance_data = make_broadcast(
+                        instance_pk, group_by_field, self.user, self.session, **kwargs
+                    )
+                    if instance_data is not None:
+                        self.send_broadcast(
+                            request_id, model_label, action, instance_data
+                        )
+
+        return SubscriptionConsumer

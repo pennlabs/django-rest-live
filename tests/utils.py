@@ -27,27 +27,34 @@ class RestLiveTestCase(TransactionTestCase):
     communicator: WebsocketCommunicator
     list: List
 
-    async def subscribe(self, model, property, value, communicator=None):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.counter = 0
+
+    async def subscribe(self, model, group_by, value, communicator=None):
+        self.counter += 1
+        request_id = self.counter
+
         if communicator is None:
             communicator = self.communicator
         await communicator.send_json_to(
             {
+                "request_id": request_id,
                 "model": model,
-                "property": property,
+                "group_by": group_by,
                 "value": value,
             }
         )
         self.assertTrue(await communicator.receive_nothing())
+        return request_id
 
-    async def unsubscribe(self, model, property, value, communicator=None):
+    async def unsubscribe(self, request_id, communicator=None):
         if communicator is None:
             communicator = self.communicator
         await communicator.send_json_to(
             {
+                "request_id": request_id,
                 "unsubscribe": True,
-                "model": model,
-                "property": property,
-                "value": value,
             }
         )
         self.assertTrue(await communicator.receive_nothing())
@@ -59,28 +66,26 @@ class RestLiveTestCase(TransactionTestCase):
         self.assertDictEqual(response, expected)
 
     def make_todo_sub_response(
-        self, todo, action, group_by_field="pk", serializer=TodoSerializer
+        self, todo, action, request_id, serializer=TodoSerializer
     ):
         return {
+            "type": "broadcast",
+            "request_id": request_id,
             "model": "test_app.Todo",
-            "instance": camelize(serializer(todo).data),
             "action": action,
-            "group_key_value": getattr(todo, group_by_field),
+            "instance": camelize(serializer(todo).data),
         }
 
     async def subscribe_to_list(self, communicator=None):
-        await self.subscribe("test_app.Todo", "list_id", self.list.pk, communicator)
-
-    async def unsubscribe_from_list(self, communicator=None):
-        await self.unsubscribe("test_app.Todo", "list_id", self.list.pk, communicator)
+        return await self.subscribe("test_app.Todo", "list_id", self.list.pk, communicator)
 
     async def make_todo(self):
         return await db(Todo.objects.create)(list=self.list, text="test")
 
     async def assertReceivedUpdateForTodo(
-        self, todo, action, communicator=None, serializer=TodoSerializer
+        self, todo, action, request_id, communicator=None, serializer=TodoSerializer
     ):
         await self.assertResponseEquals(
-            self.make_todo_sub_response(todo, action, "list_id", serializer),
+            self.make_todo_sub_response(todo, action, request_id, serializer),
             communicator,
         )
