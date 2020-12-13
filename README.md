@@ -248,7 +248,10 @@ However, broadcasts originate from database updates rather than an HTTP request,
 `django-rest-live` needs to infer many of these properties which "think" they are coming from HTTP.
 
 Since `django-rest-live` deals with readonly updates. The `request` object is looks like a `GET` request
-with no extra parameters. `request.user` and `request.session` are available as expected. One thing that can't be
+with no extra parameters. `request.user` and `request.session` are available as expected. `view.action` is `retrieve` 
+when the group-by field is either `pk` or `id`, and `list` otherwise.
+
+One thing that can't be
 inferred, however, are [view keyword arguments](https://docs.djangoproject.com/en/3.1/ref/urls/#django.urls.path),
 normally derived from URL patterns in HTTP requests.
 `django-rest-live` allows you to define view arguments in your subscription request using the `arguments` key:

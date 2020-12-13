@@ -17,8 +17,9 @@ User = get_user_model()
 """
 TODO for tests
 - Test inferring model class from static model serializer
-- 
+- Error cases
 """
+
 
 class BasicTests(RestLiveTestCase):
     async def asyncSetUp(self):
