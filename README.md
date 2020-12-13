@@ -265,17 +265,17 @@ please open an issue describing your use case! It'll go a long way to making thi
 
 ## Testing
 As of Django 3.1, you can write asynchronous tests in Django `TestCase`s. You can set up a test case by following
-the snippet below, adapted from the [`channels` documentation](https://channels.readthedocs.io/en/stable/topics/testing.html#setting-up-async-tests):
+the snippet below, using the test communicator provided in `rest_live.testing.APICommunicator`:
 
 ```python
 from django.test import TransactionTestCase
-from channels.testing import WebsocketCommunicator
 from app.routing import application  # Replace this line with the import to your ASGI router.
 from channels.db import database_sync_to_async
+from rest_live.testing import APICommunicator
 
 class MyTests(TransactionTestCase):
     async def test_subscribe(self):
-        client = WebsocketCommunicator(application, "/ws/subscribe/")
+        client = APICommunicator(application, "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
         await client.send_json_to(
@@ -312,11 +312,11 @@ run certain code before and after every test case decorated with `@async_test`. 
 
 ```python
 ...
-from rest_live.testing import async_test
+from rest_live.testing import APICommunicator, async_test
 class MyTests(TransactionTestCase):
     
     async def asyncSetUp(self):
-        self.client = WebsocketCommunicator(application, "/ws/subscribe/")
+        self.client = APICommunicator(application, "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
     
@@ -342,7 +342,7 @@ from rest_live.testing import get_headers_for_user
 
 user = await database_sync_to_async(User.objects.create_user)(username="test")
 headers = await get_headers_for_user(user)
-client = WebsocketCommunicator(appliction, "/ws/subscribe/", headers)
+client = APICommunicator(appliction, "/ws/subscribe/", headers)
 ...
 ```
 

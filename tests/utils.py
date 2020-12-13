@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TransactionTestCase
 from djangorestframework_camel_case.util import camelize
 
+from rest_live.testing import APICommunicator
 from test_app.models import List, Todo
 from test_app.serializers import TodoSerializer
 
@@ -14,7 +15,7 @@ db = database_sync_to_async
 
 
 class RestLiveTestCase(TransactionTestCase):
-    client: WebsocketCommunicator
+    client: APICommunicator
     list: List
 
     def __init__(self, *args, **kwargs):

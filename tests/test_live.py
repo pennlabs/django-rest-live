@@ -1,6 +1,6 @@
 from channels.auth import AuthMiddlewareStack
 from django.contrib.auth import get_user_model
-from channels.testing import WebsocketCommunicator
+from rest_live.testing import APICommunicator
 from channels.db import database_sync_to_async as db
 
 from rest_live import CREATED, UPDATED, DELETED
@@ -26,7 +26,7 @@ class BasicTests(RestLiveTestCase):
         router = RealtimeRouter()
         router.register(TodoViewSet)
 
-        self.client = WebsocketCommunicator(router.consumer, "/ws/subscribe/")
+        self.client = APICommunicator(router.consumer, "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
         self.list = await db(List.objects.create)(name="test list")
@@ -99,7 +99,7 @@ class PermissionsTests(RestLiveTestCase):
         self.list = await db(List.objects.create)(name="test list")
         router = RealtimeRouter()
         router.register(AuthedTodoViewSet)
-        self.client = WebsocketCommunicator(
+        self.client = APICommunicator(
             AuthMiddlewareStack(router.consumer),
             "/ws/subscribe/",
         )
@@ -108,7 +108,7 @@ class PermissionsTests(RestLiveTestCase):
 
         self.user = await db(User.objects.create_user)("test")
         headers = await get_headers_for_user(self.user)
-        self.auth_client = WebsocketCommunicator(
+        self.auth_client = APICommunicator(
             AuthMiddlewareStack(router.consumer),
             "/ws/subscribe/",
             headers,
@@ -140,7 +140,7 @@ class PermissionsTests(RestLiveTestCase):
         await self.auth_client.disconnect()
         router = RealtimeRouter()
         router.register(ConditionalTodoViewSet)
-        self.client = WebsocketCommunicator(
+        self.client = APICommunicator(
             AuthMiddlewareStack(router.consumer),
             "/ws/subscribe/",
         )
@@ -148,7 +148,7 @@ class PermissionsTests(RestLiveTestCase):
         self.assertTrue(connected)
 
         headers = await get_headers_for_user(self.user)
-        self.auth_client = WebsocketCommunicator(
+        self.auth_client = APICommunicator(
             AuthMiddlewareStack(router.consumer),
             "/ws/subscribe/",
             headers,

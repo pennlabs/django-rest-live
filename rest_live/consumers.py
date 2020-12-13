@@ -1,4 +1,5 @@
 from typing import Any, Dict, Type, List
+from rest_framework.request import Request
 
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import AsyncJsonWebsocketConsumer, JsonWebsocketConsumer
@@ -43,10 +44,10 @@ class RealtimeRouter:
 
         class SubscriptionConsumer(JsonWebsocketConsumer):
             def connect(self):
-                self.user = self.scope.get("user", None)  # noqa
-                self.session = self.scope.get("session", dict())  # noqa
-                self.subscriptions = dict()  # noqa
-                self.kwargs = dict()  # noqa
+                self.user = self.scope.get("user", None)
+                self.session = self.scope.get("session", dict())
+                self.subscriptions = dict()
+                self.kwargs = dict()
                 self.accept()
 
             def add_subscription(self, group_name, request_id, **kwargs):
@@ -141,7 +142,12 @@ class RealtimeRouter:
                 for request_id in self.subscriptions[channel_name]:
                     kwargs = self.kwargs.get(request_id, dict())
                     instance_data = make_broadcast(
-                        instance_pk, group_by_field, self.user, self.session, **kwargs
+                        instance_pk,
+                        group_by_field,
+                        self.user,
+                        self.session,
+                        self.scope,
+                        **kwargs,
                     )
                     if instance_data is not None:
                         self.send_broadcast(
