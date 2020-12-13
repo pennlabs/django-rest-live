@@ -6,6 +6,7 @@ from channels.layers import get_channel_layer
 from django.db.models.signals import post_save
 from django.utils.decorators import classonlymethod
 from djangorestframework_camel_case.util import camelize
+from rest_framework.viewsets import ModelViewSet
 
 from rest_live import get_group_name, CREATED, UPDATED
 
@@ -30,12 +31,23 @@ def _send_update(sender_model, instance, action, group_by_fields):
         )
 
 
-class RealtimeMixin(object):
+class RealtimeMixin(ModelViewSet):
     group_by_fields = ["pk"]
 
     def get_model_class(self):
-        qs = self.get_queryset()
-        return qs.model
+        assert getattr(self, "queryset", None) is not None or hasattr(
+            self, "get_queryset"
+        ), (
+            f"{self.__class__.__name__} does not define a `.queryset` attribute and so no backing model could be"
+            "determined. Views must provide `.queryset` attribute in order to be realtime-compatible."
+        )
+        assert getattr(self, "queryset", None) is not None, (
+            f"{self.__class__.__name__} only defines a dynamic `.get_queryset()` method and so no backing"
+            "model could be determined. Provide a 'sentinel' queryset of the form `queryset = Model.queryset.none()`"
+            "to your view class in order to be realtime-compatible."
+        )
+
+        return self.queryset.model
 
     def _get_model_class_label(self):
         return self.get_model_class()._meta.label  # noqa

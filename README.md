@@ -131,8 +131,25 @@ class TaskViewSet(ModelViewSet, RealtimeMixin):
 
 Note that throughout this documentation we use `ViewSet`s as our base class. It's important to note that `django-rest-live`
 works just as well with any [generic view](https://www.django-rest-framework.org/api-guide/generic-views/)
-that defines a [`get_serializer_class()`](https://www.django-rest-framework.org/api-guide/generic-views/#attributes)
-method.
+that defines a `queryset` attribute along with either a `serializer_class` atttribute or a
+[`get_serializer_class()`](https://www.django-rest-framework.org/api-guide/generic-views/#attributes) method.
+
+Just like [parts of REST Framework](https://www.django-rest-framework.org/api-guide/permissions/#using-with-views-that-do-not-include-a-queryset-attribute)
+which require knowledge of a backing model for a view, `RealtimeMixin` requires that you have a `queryset` attribute
+defined on your view, even if you have overridden the `get_queryset()` method. The DRF solution, recommended here as
+well, is to define an empty "sentinel" queryset on the view that `RealtimeMixin` can use to determine the model:
+
+```python
+from rest_framework.viewsets import ModelViewSet
+from rest_live.mixins import RealtimeMixin
+
+class FilteredTaskViewSet(ModelViewSet, RealtimeMixin):
+    serializer_class = TaskSerializer
+    queryset = Task.objects.none()  # Empty queryset indicating the backing model for this view
+
+    def get_queryset(self):  # Actual queryset for the view
+        return Task.objects.filter(user=self.request.user)
+```
 
 The last backend step is to register your View in the `RealtimeRouter` you defined in the first setup step:
 

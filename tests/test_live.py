@@ -17,7 +17,10 @@ User = get_user_model()
 """
 TODO for tests
 - Test inferring model class from static model serializer
-- Error cases
+- Error cases in API
+- Assertion errors for not defining a queryset.
+- Errors/warnings for RealtimeRouter registrations.
+
 """
 
 

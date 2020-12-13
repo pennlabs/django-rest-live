@@ -27,7 +27,7 @@ class APICommunicator(ApplicationCommunicator):
             "query_string": parsed.query.encode("utf-8"),
             "headers": headers or [],
             "subprotocols": subprotocols or [],
-            **extra
+            **extra,
         }
         super().__init__(application, self.scope)
 
