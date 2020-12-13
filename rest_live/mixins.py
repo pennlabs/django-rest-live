@@ -57,53 +57,50 @@ class RealtimeMixin(object):
         return viewset._get_model_class_label()
 
     @classonlymethod
-    def as_broadcast(cls, **initkwargs):
-        def broadcast(instance_pk, group_by_field, user, session, scope, **kwargs):
-            self = cls(**initkwargs)
+    def broadcast(cls, instance_pk, group_by_field, user, session, scope, **kwargs):
+        self = cls()
 
-            self.action_map = dict()
-            base_request = AsgiRequest(scope, BytesIO())
-            request = self.initialize_request(base_request)
+        self.action_map = dict()
+        base_request = AsgiRequest(scope, BytesIO())
+        request = self.initialize_request(base_request)
 
-            self.request = request
+        self.request = request
 
-            # TODO: Run all request middleware
-            request.user = user
-            request.session = session
+        # TODO: Run all request middleware
+        request.user = user
+        request.session = session
 
-            self.args = []
-            self.kwargs = kwargs
+        self.args = []
+        self.kwargs = kwargs
 
-            model = self.get_model_class()
-            try:
-                instance = self.get_queryset().get(pk=instance_pk)
-            except model.DoesNotExist:
-                return
+        model = self.get_model_class()
+        try:
+            instance = self.get_queryset().get(pk=instance_pk)
+        except model.DoesNotExist:
+            return
 
-            # TODO: If group_by_field is any field with a unique=True on the model,
-            if group_by_field == "pk" or group_by_field == "id":
-                self.action = "retrieve"
-            else:
-                self.action = "list"
+        # TODO: If group_by_field is any field with a unique=True on the model,
+        if group_by_field == "pk" or group_by_field == "id":
+            self.action = "retrieve"
+        else:
+            self.action = "list"
 
-            for permission in self.get_permissions():
-                # per-object permissions only checked for non-list actions.
-                if self.action != "list":
-                    if not permission.has_object_permission(request, self, instance):
-                        return None
-                if not permission.has_permission(request, self):
+        for permission in self.get_permissions():
+            # per-object permissions only checked for non-list actions.
+            if self.action != "list":
+                if not permission.has_object_permission(request, self, instance):
                     return None
+            if not permission.has_permission(request, self):
+                return None
 
-            serializer_class = self.get_serializer_class()
-            serializer = serializer_class(
-                instance,
-                context={
-                    "request": request,
-                    "format": "json",
-                    "view": self,
-                },
-            )
+        serializer_class = self.get_serializer_class()
+        serializer = serializer_class(
+            instance,
+            context={
+                "request": request,
+                "format": "json",
+                "view": self,
+            },
+        )
 
-            return camelize(serializer.data)
-
-        return broadcast
+        return camelize(serializer.data)

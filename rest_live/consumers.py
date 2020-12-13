@@ -1,25 +1,18 @@
 from typing import Any, Dict, Type, List
+
+from rest_framework.generics import GenericAPIView
 from rest_framework.request import Request
 
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import AsyncJsonWebsocketConsumer, JsonWebsocketConsumer
 
 from rest_live import DEFAULT_GROUP_BY_FIELD, get_group_name
+from rest_live.mixins import RealtimeMixin
 
 
 class RealtimeRouter:
     def __init__(self):
-        self.registry = dict()
-        self._broadcasts = None
-
-    @property
-    def broadcasts(self):
-        if self._broadcasts is None:
-            self._broadcasts = {
-                label: viewset.as_broadcast()
-                for label, viewset in self.registry.items()
-            }
-        return self._broadcasts
+        self.registry: Dict[str, Type[RealtimeMixin]] = dict()
 
     def register_all(self, viewsets):
         for viewset in viewsets:
@@ -138,11 +131,11 @@ class RealtimeRouter:
                 action = event["action"]
                 model_label = event["model"]
 
-                make_broadcast = router.broadcasts[model_label]
+                viewset = router.registry[model_label]
 
                 for request_id in self.subscriptions[channel_name]:
                     kwargs = self.kwargs.get(request_id, dict())
-                    instance_data = make_broadcast(
+                    instance_data = viewset.broadcast(
                         instance_pk,
                         group_by_field,
                         self.user,
