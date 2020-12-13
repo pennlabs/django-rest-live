@@ -182,14 +182,14 @@ is established, send a JSON message (using `JSON.stringify()`) in this format:
 You should generate the `request_id` client side. It's used to track the subscription you request throughout 
 its lifetime -- we'll see that it's referenced both in error messages and broadcasts.
 
-The model label should be in Django's standard `app.modelname` format. `value` field here is set to the value for
-the [primary key](https://docs.djangoproject.com/en/3.1/topics/db/queries/#the-pk-lookup-shortcut) for the model instance
-we're subscribing to. This is generally the value of the `id` field, but is equivalent to querying
-for `Task.objects.filter(pk=<value>)`.
+The model label should be in Django's standard `app.modelname` format. The `value` field here is set to the value for the
+[lookup field](https://www.django-rest-framework.org/api-guide/generic-views/#attributes) value for the model instance
+we're subscribing to. Since this defaults to  [`pk`](https://docs.djangoproject.com/en/3.1/topics/db/queries/#the-pk-lookup-shortcut),
+it's the conceptual equivalent of subscribing to the instance which would be returned from
+`Task.objects.filter(pk=<value>)`.
 
-The example message above would subscribe to updates for the todo task with an primary key of 1.
-As mentioned above, the client should make a GET request to get the entire list, with all its tasks and their
-associated IDs, to figure out which IDs to subscribe to.
+As mentioned above, the client should make RESTful HTTP requests for resources to determine which IDs it wants to
+subscribe to; there's no capability for querying models built in to the Websocket API, just subscriptions and broadcasts.
 
 When the Task with primary key `1` updates, a message in this format will be sent over the websocket:
 

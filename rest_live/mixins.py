@@ -32,7 +32,7 @@ def _send_update(sender_model, instance, action, group_by_fields):
 
 
 class RealtimeMixin(ModelViewSet):
-    group_by_fields = ["pk"]
+    group_by_fields = []
 
     def get_model_class(self):
         assert getattr(self, "queryset", None) is not None or hasattr(
@@ -56,7 +56,7 @@ class RealtimeMixin(ModelViewSet):
     def register_realtime(cls):
         viewset = cls()
         model_class = viewset.get_model_class()
-        group_by_fields = viewset.group_by_fields
+        group_by_fields = list(set(viewset.group_by_fields + [viewset.lookup_field]))  # remove duplicates
 
         def save_callback(sender, instance, created, **kwargs):
             _send_update(
