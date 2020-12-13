@@ -247,7 +247,7 @@ a given request has permission to view an object.
 However, broadcasts originate from database updates rather than an HTTP request, so
 `django-rest-live` needs to infer many of these properties which "think" they are coming from HTTP.
 
-Since `django-rest-live` deals with readonly updates. The `request` object is looks like a `GET` request
+Since `django-rest-live` deals with readonly updates, the `request` object is looks like a `GET` request
 with no extra parameters. `request.user` and `request.session` are available as expected. `view.action` is `retrieve` 
 when the group-by field is either `pk` or `id`, and `list` otherwise.
 
