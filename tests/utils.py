@@ -13,16 +13,6 @@ User = get_user_model()
 db = database_sync_to_async
 
 
-def async_test(fun):
-    async def wrapped(self, *args, **kwargs):
-        await self.asyncSetUp()
-        ret = await fun(self, *args, **kwargs)
-        await self.asyncTearDown()
-        return ret
-
-    return wrapped
-
-
 class RestLiveTestCase(TransactionTestCase):
     communicator: WebsocketCommunicator
     list: List

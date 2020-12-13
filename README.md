@@ -267,7 +267,7 @@ arguments, and you probably need to provide those arguments to your ViewSet subs
 
 While we believe we support a useful subset of fields on `request` and `view` objects, we know there are many
 patterns for using REST Framework. If you're getting an `AttributeError` in your `ViewSet` when receiving a broadcast
-but not when doing normal HTTP REST operations, then you're probably using an unsupported attribute. In that case,
+but not when doing normal HTTP REST operations, then you're probably using an attribute we didn't think of. In that case,
 please open an issue describing your use case! It'll go a long way to making this library more useful to all. 
 
 ## Testing
@@ -285,8 +285,8 @@ class MyTests(TransactionTestCase):
         client = WebsocketCommunicator(application, "/ws/subscribe/")
         await client.send_json_to(
             {
+                "request_id": 1337,
                 "model": "app.Model",
-                "group_by": "pk",
                 "value": "1",
             }
         )
@@ -294,10 +294,11 @@ class MyTests(TransactionTestCase):
         await database_sync_to_async(Model.objects.create)(...)
         response = await client.receive_json_from()
         self.assertEqual(response, {
+            "type": "broadcast",
+            "request_id": 1337,
             "model": "app.Model",
             "instance": { "": "..." },
             "action": "CREATED",
-            "group_key_value": "...",
         })
         await client.disconnect()
 ```
@@ -344,7 +345,7 @@ from rest_live.testing import get_headers_for_user
 
 user = await database_sync_to_async(User.objects.create_user)(username="test")
 headers = await get_headers_for_user(user)
-client = WebsocketCommunicator(application, "/ws/subscribe/", headers)
+client = WebsocketCommunicator(appliction, "/ws/subscribe/", headers)
 ```
 
 ## TODO
