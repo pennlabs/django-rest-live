@@ -28,12 +28,13 @@ class RealtimeRouter:
     def register(self, viewset):
         if not hasattr(viewset, "register_realtime"):
             raise RuntimeError(
-                "ViewSet passed to RealtimeRouter does not have RealtimeMixin applied."
+                f"View {viewset.__module__.__name__}.{viewset.__name__}"
+                "passed to RealtimeRouter does not have RealtimeMixin applied."
             )
         label = viewset.register_realtime()
         if label in self.registry:
             raise RuntimeWarning(
-                "You should not register two ViewSets for the same model."
+                "You should not register two realitime views for the same model."
             )
 
         self.registry[label] = viewset
