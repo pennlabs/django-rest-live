@@ -31,7 +31,7 @@ def _send_update(sender_model, instance, action, group_by_fields):
         )
 
 
-class RealtimeMixin(ModelViewSet):
+class RealtimeMixin(object):
     group_by_fields = []
 
     def get_model_class(self):
@@ -56,7 +56,9 @@ class RealtimeMixin(ModelViewSet):
     def register_realtime(cls):
         viewset = cls()
         model_class = viewset.get_model_class()
-        group_by_fields = list(set(viewset.group_by_fields + [viewset.lookup_field]))  # remove duplicates
+        group_by_fields = list(
+            set(viewset.group_by_fields + [viewset.lookup_field])
+        )  # remove duplicates
 
         def save_callback(sender, instance, created, **kwargs):
             _send_update(

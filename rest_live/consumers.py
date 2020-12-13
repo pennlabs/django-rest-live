@@ -21,7 +21,7 @@ class RealtimeRouter:
     def register(self, viewset):
         if not hasattr(viewset, "register_realtime"):
             raise RuntimeError(
-                f"View {viewset.__module__.__name__}.{viewset.__name__}"
+                f"View {viewset.__name__}"
                 "passed to RealtimeRouter does not have RealtimeMixin applied."
             )
         label = viewset.register_realtime()
@@ -61,7 +61,7 @@ class RealtimeRouter:
                 except IndexError:
                     self.send_error(
                         request_id,
-                        400,
+                        404,
                         "Attempted to unsubscribe for request ID before subscribing.",
                     )
                     return
@@ -117,6 +117,13 @@ class RealtimeRouter:
                             request_id, 400, f"No value specified in subscription"
                         )
                         return
+
+                    if model_label not in router.registry:
+                        self.send_error(
+                            request_id,
+                            404,
+                            f"Model {model_label} not registered for realtime updates.",
+                        )
 
                     group_name = get_group_name(model_label, group_by_field, value)
                     kwargs = content.get("kwargs", dict())

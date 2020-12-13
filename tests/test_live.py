@@ -1,5 +1,9 @@
 from channels.auth import AuthMiddlewareStack
 from django.contrib.auth import get_user_model
+from rest_framework.generics import GenericAPIView
+from rest_framework.views import APIView
+
+from rest_live.mixins import RealtimeMixin
 from rest_live.testing import APICommunicator
 from channels.db import database_sync_to_async as db
 
@@ -8,20 +12,11 @@ from rest_live.consumers import RealtimeRouter
 from rest_live.testing import async_test, get_headers_for_user
 
 from test_app.models import List, Todo
-from test_app.serializers import AuthedTodoSerializer
+from test_app.serializers import AuthedTodoSerializer, TodoSerializer
 from test_app.views import TodoViewSet, AuthedTodoViewSet, ConditionalTodoViewSet
 from tests.utils import RestLiveTestCase
 
 User = get_user_model()
-
-"""
-TODO for tests
-- Test inferring model class from static model serializer
-- Error cases in API
-- Assertion errors for not defining a queryset.
-- Errors/warnings for RealtimeRouter registrations.
-
-"""
 
 
 class BasicTests(RestLiveTestCase):
@@ -177,3 +172,98 @@ class PermissionsTests(RestLiveTestCase):
         # Assert that each connection has only received a single update.
         self.assertTrue(await self.client.receive_nothing())
         self.assertTrue(await self.auth_client.receive_nothing())
+
+
+class RealtimeSetupErrorTests(RestLiveTestCase):
+    """
+    Tests making sure that we error at registration-time
+    if a view does not have all the information we need to
+    use it for realtime broadcasts.
+    """
+
+    async def asyncSetUp(self):
+        self.router = RealtimeRouter()
+
+    @async_test
+    async def test_view_no_mixin(self):
+        class TestView(GenericAPIView):
+            queryset = Todo.objects.all()
+            serializer_class = TodoSerializer
+
+        self.assertRaises(RuntimeError, self.router.register, TestView)
+
+    @async_test
+    async def test_model_has_two_views(self):
+        class TestView(GenericAPIView, RealtimeMixin):
+            queryset = Todo.objects.all()
+            serializer_class = TodoSerializer
+
+        self.router.register(TestView)
+        self.assertRaises(RuntimeWarning, self.router.register, TestView)
+
+    @async_test
+    async def test_not_apiview(self):
+        class TestView(APIView, RealtimeMixin):
+            pass
+
+        self.assertRaises(AssertionError, self.router.register, TestView)
+
+    @async_test
+    async def test_no_queryset_attribute(self):
+        class TestView(GenericAPIView, RealtimeMixin):
+            def get_queryset(self):
+                return Todo.objects.all()
+
+        self.assertRaises(AssertionError, self.router.register, TestView)
+
+
+class APIErrorTests(RestLiveTestCase):
+    """
+    Tests making sure we send the right errors to the client in the
+    websocket API.
+    """
+
+    async def asyncSetUp(self):
+        router = RealtimeRouter()
+        router.register(TodoViewSet)
+
+        self.client = APICommunicator(router.consumer, "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+
+    async def asyncTearDown(self):
+        await self.client.disconnect()
+
+    @async_test
+    async def test_unsubscribe_before_subscribe(self):
+        await self.client.send_json_to({"request_id": 1337, "unsubscribe": True})
+        response = await self.client.receive_json_from()
+        self.assertEqual("error", response["type"])
+        self.assertEqual(1337, response["request_id"])
+        self.assertEqual(404, response["code"])
+
+    @async_test
+    async def test_no_model_in_request(self):
+        await self.client.send_json_to({"request_id": 1337, "value": 1})
+        response = await self.client.receive_json_from()
+        self.assertEqual("error", response["type"])
+        self.assertEqual(1337, response["request_id"])
+        self.assertEqual(400, response["code"])
+
+    @async_test
+    async def test_no_value_in_request(self):
+        await self.client.send_json_to({"request_id": 1337, "model": "test_app.Todo"})
+        response = await self.client.receive_json_from()
+        self.assertEqual("error", response["type"])
+        self.assertEqual(1337, response["request_id"])
+        self.assertEqual(400, response["code"])
+
+    @async_test
+    async def test_subscribe_to_unknown_model(self):
+        await self.client.send_json_to(
+            {"request_id": 1337, "model": "blah.Model", "value": 1}
+        )
+        response = await self.client.receive_json_from()
+        self.assertEqual("error", response["type"])
+        self.assertEqual(1337, response["request_id"])
+        self.assertEqual(404, response["code"])
