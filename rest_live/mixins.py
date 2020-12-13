@@ -39,7 +39,6 @@ class FakeRequest:
 class RealtimeMixin(object):
     model_class = None
     group_by_fields = ["pk"]
-    _broadcast_actions = None
 
     def get_model_class(self):
         if self.model_class is not None:
@@ -53,15 +52,6 @@ class RealtimeMixin(object):
 
     def _get_model_class_label(self):
         return self.get_model_class()._meta.label  # noqa
-
-    def _get_broadcast_actions(self):
-        if self._broadcast_actions is None:
-            self._broadcast_actions = []
-            if "pk" in self.group_by_fields:
-                self._broadcast_actions += ["retrieve"]
-            if len([f for f in self.group_by_fields if f != "pk"]):
-                self._broadcast_actions += ["list"]
-        return self._broadcast_actions
 
     @classmethod
     def register_realtime(cls):
