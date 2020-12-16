@@ -24,7 +24,7 @@ class BasicTests(RestLiveTestCase):
         router = RealtimeRouter()
         router.register(TodoViewSet)
 
-        self.client = APICommunicator(router.consumer, "/ws/subscribe/")
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
         self.list = await db(List.objects.create)(name="test list")
@@ -98,7 +98,7 @@ class PermissionsTests(RestLiveTestCase):
         router = RealtimeRouter()
         router.register(AuthedTodoViewSet)
         self.client = APICommunicator(
-            AuthMiddlewareStack(router.consumer),
+            AuthMiddlewareStack(router.as_consumer()),
             "/ws/subscribe/",
         )
         connected, _ = await self.client.connect()
@@ -107,7 +107,7 @@ class PermissionsTests(RestLiveTestCase):
         self.user = await db(User.objects.create_user)("test")
         headers = await get_headers_for_user(self.user)
         self.auth_client = APICommunicator(
-            AuthMiddlewareStack(router.consumer),
+            AuthMiddlewareStack(router.as_consumer()),
             "/ws/subscribe/",
             headers,
         )
@@ -139,7 +139,7 @@ class PermissionsTests(RestLiveTestCase):
         router = RealtimeRouter()
         router.register(ConditionalTodoViewSet)
         self.client = APICommunicator(
-            AuthMiddlewareStack(router.consumer),
+            AuthMiddlewareStack(router.as_consumer()),
             "/ws/subscribe/",
         )
         connected, _ = await self.client.connect()
@@ -147,7 +147,7 @@ class PermissionsTests(RestLiveTestCase):
 
         headers = await get_headers_for_user(self.user)
         self.auth_client = APICommunicator(
-            AuthMiddlewareStack(router.consumer),
+            AuthMiddlewareStack(router.as_consumer()),
             "/ws/subscribe/",
             headers,
         )
@@ -227,7 +227,7 @@ class APIErrorTests(RestLiveTestCase):
         router = RealtimeRouter()
         router.register(TodoViewSet)
 
-        self.client = APICommunicator(router.consumer, "/ws/subscribe/")
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
 

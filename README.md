@@ -70,7 +70,7 @@ router = RealtimeRouter()
 
 websockets = AuthMiddlewareStack(
     URLRouter([
-        path("ws/subscribe/", router.consumer, name="subscriptions"), 
+        path("ws/subscribe/", router.as_consumer, name="subscriptions"), 
         "Other routing here...",
     ])
 )
@@ -161,7 +161,7 @@ router.register(TaskViewSet)  # Register all ViewSets here
 
 websockets = AuthMiddlewareStack(
     URLRouter([
-        path("ws/subscribe/", router.consumer, name="subscriptions"), 
+        path("ws/subscribe/", router.as_consumer, name="subscriptions"), 
         "Other routing here...",
     ])
 ```
@@ -193,7 +193,7 @@ subscribe to; there's no capability for querying models built in to the Websocke
 
 When the Task with primary key `1` updates, a message in this format will be sent over the websocket:
 
-```json
+```json5
 {
     "type": "broadcast",
     "request_id": 1337,
@@ -203,7 +203,17 @@ When the Task with primary key `1` updates, a message in this format will be sen
 }
 ```
 
-Valid `action` values are `UPDATED`, `CREATED`, and `DELETED`.
+Valid `action` values are `UPDATED`, `CREATED`, and `DELETED`. `instance` is the JSON-serialized model instance
+using the serializer defined in the view's `serializer_class` attribute or returned from the `get_serializer_class`
+method.
+
+Unsubscribing is even simpler – simply pass the original `request_id` along in a websocket message:
+```json
+{
+    "unsubscribe": true,
+    "request_id": 1337
+}
+```
 
 ### Grouped subscriptions
 As mentioned above, subscriptions are "grouped" by the instance primary key by default: you send one message to the websocket to
