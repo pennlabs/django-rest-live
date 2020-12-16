@@ -30,6 +30,7 @@ class RestLiveTestCase(TransactionTestCase):
             client = self.client
         await client.send_json_to(
             {
+                "type": "subscribe",
                 "request_id": request_id,
                 "model": model,
                 "group_by": group_by,
@@ -44,8 +45,8 @@ class RestLiveTestCase(TransactionTestCase):
             client = self.client
         await client.send_json_to(
             {
+                "type": "unsubscribe",
                 "request_id": request_id,
-                "unsubscribe": True,
             }
         )
         self.assertTrue(await client.receive_nothing())

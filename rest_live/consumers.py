@@ -1,10 +1,7 @@
 from typing import Any, Dict, Type, List
 
-from rest_framework.generics import GenericAPIView
-from rest_framework.request import Request
-
 from asgiref.sync import async_to_sync
-from channels.generic.websocket import AsyncJsonWebsocketConsumer, JsonWebsocketConsumer
+from channels.generic.websocket import JsonWebsocketConsumer
 
 from rest_live import DEFAULT_GROUP_BY_FIELD, get_group_name
 from rest_live.mixins import RealtimeMixin
@@ -78,8 +75,8 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
         request_id = content.get("request_id", None)
         if request_id is None:
             return  # Can't send error message without request ID.
-        unsubscribe = content.get("unsubscribe", False)
-        if not unsubscribe:
+        message_type = content.get("type", None)
+        if message_type == "subscribe":
             model_label = content.get("model")
             if model_label is None:
                 self.send_error(request_id, 400, "No model specified")
@@ -104,8 +101,10 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             group_name = get_group_name(model_label, group_by_field, value)
             kwargs = content.get("kwargs", dict())
             self.add_subscription(group_name, request_id, **kwargs)
-        else:
+        elif message_type == "unsubscribe":
             self.remove_subscription(request_id)
+        else:
+            self.send_error(request_id, 400, f"unknown message type `{message_type}`.")
 
     def notify(self, event):
         channel_name = event["channel_name"]

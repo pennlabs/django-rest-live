@@ -69,7 +69,6 @@ class RealtimeMixin(object):
             save_callback, sender=model_class, weak=False, dispatch_uid="rest-live"
         )
         return viewset._get_model_class_label()
-
     @classonlymethod
     def broadcast(cls, instance_pk, group_by_field, user, session, scope, **kwargs):
         self = cls()

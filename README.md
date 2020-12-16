@@ -173,6 +173,7 @@ is established, send a JSON message (using `JSON.stringify()`) in this format:
 
 ```json5
 {
+  "type": "subscribe",
   "request_id": 1337,
   "model": "todolist.Task",
   "value": 1 
@@ -210,7 +211,7 @@ method.
 Unsubscribing is even simpler – simply pass the original `request_id` along in a websocket message:
 ```json
 {
-    "unsubscribe": true,
+    "type": "unsubscribe",
     "request_id": 1337
 }
 ```
@@ -273,6 +274,7 @@ normally derived from the URL path to a resource in HTTP requests.
 
 ```json
 {
+  "type": "subscribe",
   "request_id": 1339,
   "model": "todolist.Task",
   "value": 29,
@@ -306,6 +308,7 @@ class MyTests(TransactionTestCase):
         self.assertTrue(connected)
         await client.send_json_to(
             {
+                "type": "subscribe",
                 "request_id": 1337,
                 "model": "app.Model",
                 "value": "1",

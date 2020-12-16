@@ -236,7 +236,7 @@ class APIErrorTests(RestLiveTestCase):
 
     @async_test
     async def test_unsubscribe_before_subscribe(self):
-        await self.client.send_json_to({"request_id": 1337, "unsubscribe": True})
+        await self.client.send_json_to({"request_id": 1337, "type": "unsubscribe"})
         response = await self.client.receive_json_from()
         self.assertEqual("error", response["type"])
         self.assertEqual(1337, response["request_id"])
@@ -244,7 +244,7 @@ class APIErrorTests(RestLiveTestCase):
 
     @async_test
     async def test_no_model_in_request(self):
-        await self.client.send_json_to({"request_id": 1337, "value": 1})
+        await self.client.send_json_to({"type": "subscribe", "request_id": 1337, "value": 1})
         response = await self.client.receive_json_from()
         self.assertEqual("error", response["type"])
         self.assertEqual(1337, response["request_id"])
@@ -252,7 +252,7 @@ class APIErrorTests(RestLiveTestCase):
 
     @async_test
     async def test_no_value_in_request(self):
-        await self.client.send_json_to({"request_id": 1337, "model": "test_app.Todo"})
+        await self.client.send_json_to({"type": "subscribe", "request_id": 1337, "model": "test_app.Todo"})
         response = await self.client.receive_json_from()
         self.assertEqual("error", response["type"])
         self.assertEqual(1337, response["request_id"])
@@ -261,7 +261,7 @@ class APIErrorTests(RestLiveTestCase):
     @async_test
     async def test_subscribe_to_unknown_model(self):
         await self.client.send_json_to(
-            {"request_id": 1337, "model": "blah.Model", "value": 1}
+            {"type": "subscribe", "request_id": 1337, "model": "blah.Model", "value": 1}
         )
         response = await self.client.receive_json_from()
         self.assertEqual("error", response["type"])
