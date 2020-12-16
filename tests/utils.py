@@ -37,7 +37,6 @@ class RestLiveTestCase(TransactionTestCase):
                 "value": value,
             }
         )
-        self.assertTrue(await client.receive_nothing())
         return request_id
 
     async def unsubscribe(self, request_id, client=None):
@@ -51,10 +50,10 @@ class RestLiveTestCase(TransactionTestCase):
         )
         self.assertTrue(await client.receive_nothing())
 
-    async def assertResponseEquals(self, expected, communicator=None):
-        if communicator is None:
-            communicator = self.client
-        response = await communicator.receive_json_from()
+    async def assertResponseEquals(self, expected, client=None):
+        if client is None:
+            client = self.client
+        response = await client.receive_json_from()
         self.assertDictEqual(response, expected)
 
     def make_todo_sub_response(
@@ -68,10 +67,19 @@ class RestLiveTestCase(TransactionTestCase):
             "instance": camelize(serializer(todo).data),
         }
 
-    async def subscribe_to_list(self, communicator=None):
-        return await self.subscribe(
-            "test_app.Todo", "list_id", self.list.pk, communicator
+    async def subscribe_to_list(self, client=None, error=None):
+        if client is None:
+            client = self.client
+
+        request_id = await self.subscribe(
+            "test_app.Todo", "list_id", self.list.pk, client
         )
+        if error is None:
+            self.assertTrue(await client.receive_nothing())
+        else:
+            msg = await client.receive_json_from()
+            self.assertTrue(error, msg["code"])
+        return request_id
 
     async def make_todo(self):
         return await db(Todo.objects.create)(list=self.list, text="test")

@@ -120,7 +120,7 @@ class PermissionsTests(RestLiveTestCase):
 
     @async_test
     async def test_list_sub_no_permission(self):
-        await self.subscribe_to_list()
+        await self.subscribe_to_list(error=403)
         await self.make_todo()
         self.assertTrue(await self.client.receive_nothing())
 
