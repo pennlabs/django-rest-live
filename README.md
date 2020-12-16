@@ -70,7 +70,7 @@ router = RealtimeRouter()
 
 websockets = AuthMiddlewareStack(
     URLRouter([
-        path("ws/subscribe/", router.as_consumer, name="subscriptions"), 
+        path("ws/subscribe/", router.as_consumer(), name="subscriptions"), 
         "Other routing here...",
     ])
 )
@@ -161,7 +161,7 @@ router.register(TaskViewSet)  # Register all ViewSets here
 
 websockets = AuthMiddlewareStack(
     URLRouter([
-        path("ws/subscribe/", router.as_consumer, name="subscriptions"), 
+        path("ws/subscribe/", router.as_consumer(), name="subscriptions"), 
         "Other routing here...",
     ])
 ```
