@@ -8,7 +8,7 @@ from rest_live.mixins import RealtimeMixin
 
 
 class SubscriptionConsumer(JsonWebsocketConsumer):
-    registry = dict()
+    registry: Dict[str, Type[RealtimeMixin]] = dict()
 
     def connect(self):
         self.user = self.scope.get("user", None)
@@ -22,15 +22,13 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
         self.subscriptions.setdefault(group_name, []).append(request_id)
         self.groups.append(group_name)
         self.kwargs[request_id] = kwargs
-        async_to_sync(self.channel_layer.group_add)(
-            group_name, self.channel_name
-        )
+        async_to_sync(self.channel_layer.group_add)(group_name, self.channel_name)
 
     def remove_subscription(self, request_id):
         try:
-            group_name = [
-                k for k, v in self.subscriptions.items() if request_id in v
-            ][0]
+            group_name = [k for k, v in self.subscriptions.items() if request_id in v][
+                0
+            ]
         except IndexError:
             self.send_error(
                 request_id,
@@ -82,13 +80,12 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 self.send_error(request_id, 400, "No model specified")
                 return
 
+            # TODO: Switch from PK to lookup field for the viewset.
             group_by_field = content.get("group_by", DEFAULT_GROUP_BY_FIELD)
             value = content.get("value", None)
 
             if value is None:
-                self.send_error(
-                    request_id, 400, f"No value specified in subscription"
-                )
+                self.send_error(request_id, 400, f"No value specified in subscription")
                 return
 
             if model_label not in self.registry:
@@ -97,6 +94,17 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                     404,
                     f"Model {model_label} not registered for realtime updates.",
                 )
+                return
+
+            if not self.registry[model_label].user_can_subscribe(
+                group_by_field, value, self.user, self.session, self.scope
+            ):
+                self.send_error(
+                    request_id,
+                    403,
+                    f"Unauthorized to subscribe to {model_label} by field {group_by_field}",
+                )
+                return
 
             group_name = get_group_name(model_label, group_by_field, value)
             kwargs = content.get("kwargs", dict())
@@ -126,9 +134,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 **kwargs,
             )
             if instance_data is not None:
-                self.send_broadcast(
-                    request_id, model_label, action, instance_data
-                )
+                self.send_broadcast(request_id, model_label, action, instance_data)
 
 
 class RealtimeRouter:
@@ -154,4 +160,8 @@ class RealtimeRouter:
         self.registry[label] = viewset
 
     def as_consumer(self):
-        return type('BoundSubscriptionConsumer', (SubscriptionConsumer, ), dict(registry=self.registry))
+        return type(
+            "BoundSubscriptionConsumer",
+            (SubscriptionConsumer,),
+            dict(registry=self.registry),
+        )

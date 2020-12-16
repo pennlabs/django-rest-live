@@ -69,6 +69,35 @@ class RealtimeMixin(object):
             save_callback, sender=model_class, weak=False, dispatch_uid="rest-live"
         )
         return viewset._get_model_class_label()
+
+    @classmethod
+    def user_can_subscribe(cls, group_by_field, value, user, session, scope):
+        # TODO: Factor out common code
+        self = cls()
+        self.action_map = dict()
+        base_request = AsgiRequest(scope, BytesIO())
+        request = self.initialize_request(base_request)
+        self.request = request
+        request.user = user
+        request.session = session
+
+        if group_by_field == self.lookup_field:
+            self.action = "retrieve"
+        else:
+            self.action = "list"
+
+        for permission in self.get_permissions():
+            if not permission.has_permission(request, self):
+                return False
+
+        if self.action == "retrieve":
+            instance = self.get_queryset().get(**{self.lookup_field: value})
+            for permission in self.get_permissions():
+                if not permission.has_object_permission(request, self, instance):
+                    return False
+
+        return True
+
     @classonlymethod
     def broadcast(cls, instance_pk, group_by_field, user, session, scope, **kwargs):
         self = cls()
@@ -85,6 +114,11 @@ class RealtimeMixin(object):
 
         self.args = []
         self.kwargs = kwargs
+        # TODO: If group_by_field is any field with a unique=True on the model,
+        if group_by_field == "pk" or group_by_field == "id":
+            self.action = "retrieve"
+        else:
+            self.action = "list"
 
         model = self.get_model_class()
         try:
@@ -92,12 +126,7 @@ class RealtimeMixin(object):
         except model.DoesNotExist:
             return
 
-        # TODO: If group_by_field is any field with a unique=True on the model,
-        if group_by_field == "pk" or group_by_field == "id":
-            self.action = "retrieve"
-        else:
-            self.action = "list"
-
+        # TODO: Investigate whether or not this check is erroneous
         for permission in self.get_permissions():
             # per-object permissions only checked for non-list actions.
             if self.action != "list":
