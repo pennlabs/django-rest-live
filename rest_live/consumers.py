@@ -11,6 +11,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
     registry: Dict[str, Type[RealtimeMixin]] = dict()
 
     def connect(self):
+        self.scope["method"] = "GET"
         self.user = self.scope.get("user", None)
         self.session = self.scope.get("session", dict())
         self.subscriptions = dict()
@@ -59,6 +60,8 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
         )
 
     def send_broadcast(self, request_id, model_label, action, instance_data, renderer):
+        # TODO: Read about content negotiation and pull this out from the mixin into the consumer
+        # https://www.django-rest-framework.org/api-guide/content-negotiation/
         self.send(
             text_data=renderer.render(
                 {
@@ -164,6 +167,8 @@ class RealtimeRouter:
         self.registry[label] = viewset
 
     def as_consumer(self):
+        # Create a subclass of `SubscriptionConsumer` where the consumer's model
+        # registry is set to this router's registry. Basically a subclass inside a closure.
         return type(
             "BoundSubscriptionConsumer",
             (SubscriptionConsumer,),

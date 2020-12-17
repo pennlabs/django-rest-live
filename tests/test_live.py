@@ -18,6 +18,14 @@ from tests.utils import RestLiveTestCase
 
 User = get_user_model()
 
+"""
+TODO:
+- two different routers, two different viewets, two different websocket connections.
+  make sure both signal handlers are registered properly and called.
+- kwargs tests to make sure permissions work, serializers work.
+- queryset filters out models.
+"""
+
 
 class BasicTests(RestLiveTestCase):
     async def asyncSetUp(self):

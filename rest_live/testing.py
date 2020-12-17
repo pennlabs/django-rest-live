@@ -22,7 +22,6 @@ class APICommunicator(ApplicationCommunicator):
             "http_version": "1.1",
             "client": ["127.0.0.1", 0],
             "server": ("testserver", "80"),
-            "method": "GET",
             "path": unquote(parsed.path),
             "query_string": parsed.query.encode("utf-8"),
             "headers": headers or [],

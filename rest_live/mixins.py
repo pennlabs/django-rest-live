@@ -37,6 +37,7 @@ class RealtimeMixin(object):
     group_by_fields = []
 
     def get_model_class(self):
+        # TODO: Better model inference from `get_queryset` if we can.
         assert getattr(self, "queryset", None) is not None or hasattr(
             self, "get_queryset"
         ), (
@@ -144,7 +145,7 @@ class RealtimeMixin(object):
             instance,
             context={
                 "request": request,
-                "format": "json",
+                "format": "json",  # TODO: change this to be general based on content negotiation
                 "view": self,
             },
         )
