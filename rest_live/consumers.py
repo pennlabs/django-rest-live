@@ -52,25 +52,27 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
         self.send_json(
             {
                 "type": "error",
-                "request_id": request_id,
+                "id": request_id,
                 "code": code,
                 "message": message,
             }
         )
 
-    def send_broadcast(self, request_id, model_label, action, instance_data):
-        self.send_json(
-            {
-                "type": "broadcast",
-                "request_id": request_id,
-                "model": model_label,
-                "action": action,
-                "instance": instance_data,
-            }
+    def send_broadcast(self, request_id, model_label, action, instance_data, renderer):
+        self.send(
+            text_data=renderer.render(
+                {
+                    "type": "broadcast",
+                    "id": request_id,
+                    "model": model_label,
+                    "action": action,
+                    "instance": instance_data,
+                }
+            ).decode("utf-8")
         )
 
     def receive_json(self, content: Dict[str, Any], **kwargs):
-        request_id = content.get("request_id", None)
+        request_id = content.get("id", None)
         if request_id is None:
             return  # Can't send error message without request ID.
         message_type = content.get("type", None)
@@ -96,8 +98,9 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 )
                 return
 
+            kwargs = content.get("kwargs", dict())
             if not self.registry[model_label].user_can_subscribe(
-                group_by_field, value, self.user, self.session, self.scope
+                group_by_field, value, kwargs, self.user, self.session, self.scope
             ):
                 self.send_error(
                     request_id,
@@ -107,7 +110,6 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 return
 
             group_name = get_group_name(model_label, group_by_field, value)
-            kwargs = content.get("kwargs", dict())
             self.add_subscription(group_name, request_id, **kwargs)
         elif message_type == "unsubscribe":
             self.remove_subscription(request_id)
@@ -125,7 +127,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
         for request_id in self.subscriptions[channel_name]:
             kwargs = self.kwargs.get(request_id, dict())
-            instance_data = viewset.broadcast(
+            instance_data, renderer = viewset.broadcast(
                 instance_pk,
                 group_by_field,
                 self.user,
@@ -134,7 +136,9 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 **kwargs,
             )
             if instance_data is not None:
-                self.send_broadcast(request_id, model_label, action, instance_data)
+                self.send_broadcast(
+                    request_id, model_label, action, instance_data, renderer
+                )
 
 
 class RealtimeRouter:

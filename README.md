@@ -174,13 +174,13 @@ is established, send a JSON message (using `JSON.stringify()`) in this format:
 ```json5
 {
   "type": "subscribe",
-  "request_id": 1337,
+  "id": 1337,
   "model": "todolist.Task",
   "value": 1 
 }
 ```
 
-You should generate the `request_id` client side. It's used to track the subscription you request throughout 
+You should generate the `id` client side. It's used to track the subscription you request throughout 
 its lifetime -- we'll see that it's referenced both in error messages and broadcasts.
 
 The model label should be in Django's standard `app.modelname` format. The `value` field here is set to the value for the
@@ -197,7 +197,7 @@ When the Task with primary key `1` updates, a message in this format will be sen
 ```json5
 {
     "type": "broadcast",
-    "request_id": 1337,
+    "id": 1337,
     "model": "test_app.Todo",
     "action": "UPDATED",
     "instance": {"id": 1, "text": "test", "done": true}
@@ -208,11 +208,11 @@ Valid `action` values are `UPDATED`, `CREATED`, and `DELETED`. `instance` is the
 using the serializer defined in the view's `serializer_class` attribute or returned from the `get_serializer_class`
 method.
 
-Unsubscribing is even simpler – simply pass the original `request_id` along in a websocket message:
+Unsubscribing is even simpler – simply pass the original `id` along in a websocket message:
 ```json
 {
     "type": "unsubscribe",
-    "request_id": 1337
+    "id": 1337
 }
 ```
 
@@ -241,7 +241,7 @@ In this case, we're grouping by the `list_id` of the list we'd like to get updat
 
 ```json5
 {
-  "request_id": 1338,
+  "id": 1338,
   "model": "todolist.Task",
   "group_by": "list_id",
   "value": 14
@@ -275,7 +275,7 @@ normally derived from the URL path to a resource in HTTP requests.
 ```json
 {
   "type": "subscribe",
-  "request_id": 1339,
+  "id": 1339,
   "model": "todolist.Task",
   "value": 29,
   "arguments": {
@@ -309,7 +309,7 @@ class MyTests(TransactionTestCase):
         await client.send_json_to(
             {
                 "type": "subscribe",
-                "request_id": 1337,
+                "id": 1337,
                 "model": "app.Model",
                 "value": "1",
             }
@@ -319,7 +319,7 @@ class MyTests(TransactionTestCase):
         response = await client.receive_json_from()
         self.assertEqual(response, {
             "type": "broadcast",
-            "request_id": 1337,
+            "id": 1337,
             "model": "app.Model",
             "instance": { "": "..." },
             "action": "CREATED",

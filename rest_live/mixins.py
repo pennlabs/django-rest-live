@@ -1,4 +1,5 @@
 from io import BytesIO
+from typing import Optional
 
 from asgiref.sync import async_to_sync
 from channels.http import AsgiRequest
@@ -8,6 +9,7 @@ from django.utils.decorators import classonlymethod
 from djangorestframework_camel_case.util import camelize
 from rest_framework.viewsets import ModelViewSet
 
+from rest_framework.renderers import BaseRenderer
 from rest_live import get_group_name, CREATED, UPDATED
 
 
@@ -71,10 +73,12 @@ class RealtimeMixin(object):
         return viewset._get_model_class_label()
 
     @classmethod
-    def user_can_subscribe(cls, group_by_field, value, user, session, scope):
+    def user_can_subscribe(cls, group_by_field, value, kwargs, user, session, scope):
         # TODO: Factor out common code
         self = cls()
         self.action_map = dict()
+        self.kwargs = kwargs
+
         base_request = AsgiRequest(scope, BytesIO())
         request = self.initialize_request(base_request)
         self.request = request
@@ -101,7 +105,7 @@ class RealtimeMixin(object):
     @classonlymethod
     def broadcast(cls, instance_pk, group_by_field, user, session, scope, **kwargs):
         self = cls()
-
+        self.format_kwarg = None
         self.action_map = dict()
         base_request = AsgiRequest(scope, BytesIO())
         request = self.initialize_request(base_request)
@@ -144,5 +148,6 @@ class RealtimeMixin(object):
                 "view": self,
             },
         )
+        renderer: BaseRenderer = self.perform_content_negotiation(request)[0]
 
-        return camelize(serializer.data)
+        return serializer.data, renderer

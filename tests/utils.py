@@ -31,7 +31,7 @@ class RestLiveTestCase(TransactionTestCase):
         await client.send_json_to(
             {
                 "type": "subscribe",
-                "request_id": request_id,
+                "id": request_id,
                 "model": model,
                 "group_by": group_by,
                 "value": value,
@@ -45,7 +45,7 @@ class RestLiveTestCase(TransactionTestCase):
         await client.send_json_to(
             {
                 "type": "unsubscribe",
-                "request_id": request_id,
+                "id": request_id,
             }
         )
         self.assertTrue(await client.receive_nothing())
@@ -61,7 +61,7 @@ class RestLiveTestCase(TransactionTestCase):
     ):
         return {
             "type": "broadcast",
-            "request_id": request_id,
+            "id": request_id,
             "model": "test_app.Todo",
             "action": action,
             "instance": camelize(serializer(todo).data),
