@@ -20,8 +20,6 @@ User = get_user_model()
 
 """
 TODO:
-- two different routers, two different viewets, two different websocket connections.
-  make sure both signal handlers are registered properly and called.
 - kwargs tests to make sure permissions work, serializers work.
 - queryset filters out model instances.
 - tests for individual subscriptions (not list resources, where lookup_field == group_by_field)
@@ -31,21 +29,13 @@ TODO:
 class MultiRouterTests(RestLiveTestCase):
     async def asyncSetUp(self):
         self.list = await db(List.objects.create)(name="test list")
-        router1 = RealtimeRouter()
-        router1.register(TodoViewSet)
-        router2 = RealtimeRouter("auth")
-        router2.register(AuthedTodoViewSet)
+        self.router1 = RealtimeRouter()
+        self.router1.register(TodoViewSet)
+        self.router2 = RealtimeRouter("auth")
+        self.router2.register(AuthedTodoViewSet)
 
         self.user = await db(User.objects.create_user)("test")
-        headers = await get_headers_for_user(self.user)
-        self.client1 = APICommunicator(
-            AuthMiddlewareStack(router1.as_consumer()), "/ws/subscribe/", headers
-        )
-        self.assertTrue(await self.client1.connect())
-        self.client2 = APICommunicator(
-            AuthMiddlewareStack(router2.as_consumer()), "/ws/subscribe/auth/", headers
-        )
-        self.assertTrue(await self.client2.connect())
+        self.headers = await get_headers_for_user(self.user)
 
     async def asyncTearDown(self):
         await self.client1.disconnect()
@@ -53,6 +43,15 @@ class MultiRouterTests(RestLiveTestCase):
 
     @async_test
     async def test_broadcasts_one_per_router(self):
+        self.client1 = APICommunicator(
+            AuthMiddlewareStack(self.router1.as_consumer()), "/ws/subscribe/", self.headers
+        )
+        self.assertTrue(await self.client1.connect())
+        self.client2 = APICommunicator(
+            AuthMiddlewareStack(self.router2.as_consumer()), "/ws/subscribe/auth/", self.headers
+        )
+        self.assertTrue(await self.client2.connect())
+
         req1 = await self.subscribe_to_list(self.client1)
         req2 = await self.subscribe_to_list(self.client2)
 
@@ -60,6 +59,25 @@ class MultiRouterTests(RestLiveTestCase):
         await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1, self.client1)
         self.assertTrue(await self.client1.receive_nothing())
         await self.assertReceivedUpdateForTodo(new_todo, CREATED, req2, self.client2)
+        self.assertTrue(await self.client2.receive_nothing())
+
+    @async_test
+    async def test_broadcasts_only_to_one(self):
+        self.client1 = APICommunicator(
+            AuthMiddlewareStack(self.router1.as_consumer()), "/ws/subscribe/", self.headers
+        )
+        self.assertTrue(await self.client1.connect())
+        self.client2 = APICommunicator(
+            AuthMiddlewareStack(self.router2.as_consumer()), "/ws/subscribe/auth/"
+        )
+        self.assertTrue(await self.client2.connect())
+
+        req1 = await self.subscribe_to_list(self.client1)
+        req2 = await self.subscribe_to_list(self.client2, 403)
+
+        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
+        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1, self.client1)
+        self.assertTrue(await self.client1.receive_nothing())
         self.assertTrue(await self.client2.receive_nothing())
 
 
