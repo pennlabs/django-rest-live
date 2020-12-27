@@ -1,15 +1,14 @@
 from io import BytesIO
-from typing import Optional
 
 from asgiref.sync import async_to_sync
 from channels.http import AsgiRequest
 from channels.layers import get_channel_layer
 from django.db.models.signals import post_save
 from django.utils.decorators import classonlymethod
-from djangorestframework_camel_case.util import camelize
-from rest_framework.viewsets import ModelViewSet
 
 from rest_framework.renderers import BaseRenderer
+from rest_framework.viewsets import ModelViewSet
+
 from rest_live import get_group_name, CREATED, UPDATED
 
 
@@ -38,9 +37,7 @@ class RealtimeMixin(object):
 
     def get_model_class(self):
         # TODO: Better model inference from `get_queryset` if we can.
-        assert getattr(self, "queryset", None) is not None or hasattr(
-            self, "get_queryset"
-        ), (
+        assert getattr(self, "queryset", None) is not None or hasattr(self, "get_queryset"), (
             f"{self.__class__.__name__} does not define a `.queryset` attribute and so no backing model could be"
             "determined. Views must provide `.queryset` attribute in order to be realtime-compatible."
         )
@@ -56,7 +53,7 @@ class RealtimeMixin(object):
         return self.get_model_class()._meta.label  # noqa
 
     @classmethod
-    def register_realtime(cls):
+    def register_realtime(cls, dispatch_uid):
         viewset = cls()
         model_class = viewset.get_model_class()
         group_by_fields = list(
@@ -64,66 +61,49 @@ class RealtimeMixin(object):
         )  # remove duplicates
 
         def save_callback(sender, instance, created, **kwargs):
-            _send_update(
-                sender, instance, CREATED if created else UPDATED, group_by_fields
-            )
+            _send_update(sender, instance, CREATED if created else UPDATED, group_by_fields)
 
-        post_save.connect(
-            save_callback, sender=model_class, weak=False, dispatch_uid="rest-live"
-        )
+        post_save.connect(save_callback, sender=model_class, weak=False, dispatch_uid=f"rest-live")
         return viewset._get_model_class_label()
 
-    @classmethod
-    def user_can_subscribe(cls, group_by_field, value, kwargs, user, session, scope):
-        # TODO: Factor out common code
-        self = cls()
+    def _realtime_init(self, group_by_field, scope, view_kwargs):
+        self.format_kwarg = None
         self.action_map = dict()
-        self.kwargs = kwargs
+        self.args = []
+        self.kwargs = view_kwargs
 
         base_request = AsgiRequest(scope, BytesIO())
         request = self.initialize_request(base_request)
         self.request = request
-        request.user = user
-        request.session = session
+        request.user = scope.get("user", None)
+        request.session = scope.get("session", None)
 
         if group_by_field == self.lookup_field:
             self.action = "retrieve"
         else:
             self.action = "list"
 
+    @classmethod
+    def user_can_subscribe(cls, group_by_field, value, scope, view_kwargs):
+        self = cls()
+        self._realtime_init(group_by_field, scope, view_kwargs)
+
         for permission in self.get_permissions():
-            if not permission.has_permission(request, self):
+            if not permission.has_permission(self.request, self):
                 return False
 
         if self.action == "retrieve":
             instance = self.get_queryset().get(**{self.lookup_field: value})
             for permission in self.get_permissions():
-                if not permission.has_object_permission(request, self, instance):
+                if not permission.has_object_permission(self.request, self, instance):
                     return False
 
         return True
 
     @classonlymethod
-    def broadcast(cls, instance_pk, group_by_field, user, session, scope, **kwargs):
+    def broadcast(cls, instance_pk, group_by_field, scope, view_kwargs):
         self = cls()
-        self.format_kwarg = None
-        self.action_map = dict()
-        base_request = AsgiRequest(scope, BytesIO())
-        request = self.initialize_request(base_request)
-
-        self.request = request
-
-        # TODO: Run all request middleware
-        request.user = user
-        request.session = session
-
-        self.args = []
-        self.kwargs = kwargs
-        # TODO: If group_by_field is any field with a unique=True on the model,
-        if group_by_field == "pk" or group_by_field == "id":
-            self.action = "retrieve"
-        else:
-            self.action = "list"
+        self._realtime_init(group_by_field, scope, view_kwargs)
 
         model = self.get_model_class()
         try:
@@ -131,24 +111,15 @@ class RealtimeMixin(object):
         except model.DoesNotExist:
             return
 
-        # TODO: Investigate whether or not this check is erroneous
-        for permission in self.get_permissions():
-            # per-object permissions only checked for non-list actions.
-            if self.action != "list":
-                if not permission.has_object_permission(request, self, instance):
-                    return None
-            if not permission.has_permission(request, self):
-                return None
-
         serializer_class = self.get_serializer_class()
         serializer = serializer_class(
             instance,
             context={
-                "request": request,
+                "request": self.request,
                 "format": "json",  # TODO: change this to be general based on content negotiation
                 "view": self,
             },
         )
-        renderer: BaseRenderer = self.perform_content_negotiation(request)[0]
+        renderer: BaseRenderer = self.perform_content_negotiation(self.request)[0]
 
         return serializer.data, renderer

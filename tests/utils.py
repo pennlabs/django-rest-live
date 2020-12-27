@@ -56,9 +56,7 @@ class RestLiveTestCase(TransactionTestCase):
         response = await client.receive_json_from()
         self.assertDictEqual(response, expected)
 
-    def make_todo_sub_response(
-        self, todo, action, request_id, serializer=TodoSerializer
-    ):
+    def make_todo_sub_response(self, todo, action, request_id, serializer=TodoSerializer):
         return {
             "type": "broadcast",
             "id": request_id,
@@ -71,9 +69,7 @@ class RestLiveTestCase(TransactionTestCase):
         if client is None:
             client = self.client
 
-        request_id = await self.subscribe(
-            "test_app.Todo", "list_id", self.list.pk, client
-        )
+        request_id = await self.subscribe("test_app.Todo", "list_id", self.list.pk, client)
         if error is None:
             self.assertTrue(await client.receive_nothing())
         else:

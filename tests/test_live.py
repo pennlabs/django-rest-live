@@ -23,11 +23,47 @@ TODO:
 - two different routers, two different viewets, two different websocket connections.
   make sure both signal handlers are registered properly and called.
 - kwargs tests to make sure permissions work, serializers work.
-- queryset filters out models.
+- queryset filters out model instances.
+- tests for individual subscriptions (not list resources, where lookup_field == group_by_field)
 """
 
 
-class BasicTests(RestLiveTestCase):
+class MultiRouterTests(RestLiveTestCase):
+    async def asyncSetUp(self):
+        self.list = await db(List.objects.create)(name="test list")
+        router1 = RealtimeRouter()
+        router1.register(TodoViewSet)
+        router2 = RealtimeRouter("auth")
+        router2.register(AuthedTodoViewSet)
+
+        self.user = await db(User.objects.create_user)("test")
+        headers = await get_headers_for_user(self.user)
+        self.client1 = APICommunicator(
+            AuthMiddlewareStack(router1.as_consumer()), "/ws/subscribe/", headers
+        )
+        self.assertTrue(await self.client1.connect())
+        self.client2 = APICommunicator(
+            AuthMiddlewareStack(router2.as_consumer()), "/ws/subscribe/auth/", headers
+        )
+        self.assertTrue(await self.client2.connect())
+
+    async def asyncTearDown(self):
+        await self.client1.disconnect()
+        await self.client2.disconnect()
+
+    @async_test
+    async def test_broadcasts_one_per_router(self):
+        req1 = await self.subscribe_to_list(self.client1)
+        req2 = await self.subscribe_to_list(self.client2)
+
+        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
+        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1, self.client1)
+        self.assertTrue(await self.client1.receive_nothing())
+        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req2, self.client2)
+        self.assertTrue(await self.client2.receive_nothing())
+
+
+class BasicListTests(RestLiveTestCase):
     async def asyncSetUp(self):
         router = RealtimeRouter()
         router.register(TodoViewSet)
@@ -166,9 +202,7 @@ class PermissionsTests(RestLiveTestCase):
         req_auth = await self.subscribe_to_list(self.auth_client)
         new_todo = await self.make_todo()
 
-        await self.assertReceivedUpdateForTodo(
-            new_todo, CREATED, req, communicator=self.client
-        )
+        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req, communicator=self.client)
         await self.assertReceivedUpdateForTodo(
             new_todo,
             CREATED,
@@ -242,38 +276,30 @@ class APIErrorTests(RestLiveTestCase):
     async def asyncTearDown(self):
         await self.client.disconnect()
 
+    async def assertReceiveError(self, request_id, error_code):
+        response = await self.client.receive_json_from()
+        self.assertEqual("error", response["type"])
+        self.assertEqual(request_id, response["id"])
+        self.assertEqual(error_code, response["code"])
+
     @async_test
     async def test_unsubscribe_before_subscribe(self):
         await self.client.send_json_to({"id": 1337, "type": "unsubscribe"})
-        response = await self.client.receive_json_from()
-        self.assertEqual("error", response["type"])
-        self.assertEqual(1337, response["id"])
-        self.assertEqual(404, response["code"])
+        await self.assertReceiveError(1337, 404)
 
     @async_test
     async def test_no_model_in_request(self):
         await self.client.send_json_to({"type": "subscribe", "id": 1337, "value": 1})
-        response = await self.client.receive_json_from()
-        self.assertEqual("error", response["type"])
-        self.assertEqual(1337, response["id"])
-        self.assertEqual(400, response["code"])
+        await self.assertReceiveError(1337, 400)
 
     @async_test
     async def test_no_value_in_request(self):
-        await self.client.send_json_to(
-            {"type": "subscribe", "id": 1337, "model": "test_app.Todo"}
-        )
-        response = await self.client.receive_json_from()
-        self.assertEqual("error", response["type"])
-        self.assertEqual(1337, response["id"])
-        self.assertEqual(400, response["code"])
+        await self.client.send_json_to({"type": "subscribe", "id": 1337, "model": "test_app.Todo"})
+        await self.assertReceiveError(1337, 400)
 
     @async_test
     async def test_subscribe_to_unknown_model(self):
         await self.client.send_json_to(
             {"type": "subscribe", "id": 1337, "model": "blah.Model", "value": 1}
         )
-        response = await self.client.receive_json_from()
-        self.assertEqual("error", response["type"])
-        self.assertEqual(1337, response["id"])
-        self.assertEqual(404, response["code"])
+        await self.assertReceiveError(1337, 404)

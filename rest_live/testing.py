@@ -57,9 +57,7 @@ class APICommunicator(ApplicationCommunicator):
             assert isinstance(text_data, str), "The text_data argument must be a str"
             await self.send_input({"type": "websocket.receive", "text": text_data})
         else:
-            assert isinstance(
-                bytes_data, bytes
-            ), "The bytes_data argument must be bytes"
+            assert isinstance(bytes_data, bytes), "The bytes_data argument must be bytes"
             await self.send_input({"type": "websocket.receive", "bytes": bytes_data})
 
     async def send_json_to(self, data):
@@ -86,9 +84,7 @@ class APICommunicator(ApplicationCommunicator):
             assert isinstance(response["text"], str), "Text frame payload is not str"
             return response["text"]
         else:
-            assert isinstance(
-                response["bytes"], bytes
-            ), "Binary frame payload is not bytes"
+            assert isinstance(response["bytes"], bytes), "Binary frame payload is not bytes"
             return response["bytes"]
 
     async def receive_json_from(self, timeout=1):

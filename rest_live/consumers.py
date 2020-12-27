@@ -27,9 +27,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
     def remove_subscription(self, request_id):
         try:
-            group_name = [k for k, v in self.subscriptions.items() if request_id in v][
-                0
-            ]
+            group_name = [k for k, v in self.subscriptions.items() if request_id in v][0]
         except IndexError:
             self.send_error(
                 request_id,
@@ -43,9 +41,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
         self.subscriptions[group_name].remove(request_id)
         self.groups.remove(group_name)
         if group_name not in self.groups:
-            async_to_sync(self.channel_layer.group_discard)(
-                group_name, self.channel_name
-            )
+            async_to_sync(self.channel_layer.group_discard)(group_name, self.channel_name)
         if len(self.subscriptions[group_name]) == 0:
             del self.subscriptions[group_name]
 
@@ -103,7 +99,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
             kwargs = content.get("kwargs", dict())
             if not self.registry[model_label].user_can_subscribe(
-                group_by_field, value, kwargs, self.user, self.session, self.scope
+                group_by_field, value, self.scope, kwargs
             ):
                 self.send_error(
                     request_id,
@@ -133,20 +129,17 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             instance_data, renderer = viewset.broadcast(
                 instance_pk,
                 group_by_field,
-                self.user,
-                self.session,
                 self.scope,
-                **kwargs,
+                view_kwargs=kwargs,
             )
             if instance_data is not None:
-                self.send_broadcast(
-                    request_id, model_label, action, instance_data, renderer
-                )
+                self.send_broadcast(request_id, model_label, action, instance_data, renderer)
 
 
 class RealtimeRouter:
-    def __init__(self):
+    def __init__(self, uid="default"):
         self.registry: Dict[str, Type[RealtimeMixin]] = dict()
+        self.uid = uid
 
     def register_all(self, viewsets):
         for viewset in viewsets:
@@ -158,11 +151,9 @@ class RealtimeRouter:
                 f"View {viewset.__name__}"
                 "passed to RealtimeRouter does not have RealtimeMixin applied."
             )
-        label = viewset.register_realtime()
+        label = viewset.register_realtime(self.uid)
         if label in self.registry:
-            raise RuntimeWarning(
-                "You should not register two realitime views for the same model."
-            )
+            raise RuntimeWarning("You should not register two realitime views for the same model.")
 
         self.registry[label] = viewset
 
