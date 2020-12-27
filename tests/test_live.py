@@ -13,75 +13,62 @@ from rest_live.testing import async_test, get_headers_for_user
 
 from test_app.models import List, Todo
 from test_app.serializers import AuthedTodoSerializer, TodoSerializer
-from test_app.views import TodoViewSet, AuthedTodoViewSet, ConditionalTodoViewSet
+from test_app.views import (
+    TodoViewSet,
+    AuthedTodoViewSet,
+    ConditionalTodoViewSet,
+    EmptyTodoViewSet,
+    KwargViewSet,
+)
 from tests.utils import RestLiveTestCase
 
 User = get_user_model()
 
-"""
-TODO:
-- kwargs tests to make sure permissions work, serializers work.
-- queryset filters out model instances.
-- tests for individual subscriptions (not list resources, where lookup_field == group_by_field)
-"""
 
+class BasicResourceTests(RestLiveTestCase):
+    """
+    Basic subscription tests on single resources, retrieving by the lookup_field
+    on the view.
+    """
 
-class MultiRouterTests(RestLiveTestCase):
     async def asyncSetUp(self):
-        self.list = await db(List.objects.create)(name="test list")
-        self.router1 = RealtimeRouter()
-        self.router1.register(TodoViewSet)
-        self.router2 = RealtimeRouter("auth")
-        self.router2.register(AuthedTodoViewSet)
+        router = RealtimeRouter()
+        router.register(TodoViewSet)
 
-        self.user = await db(User.objects.create_user)("test")
-        self.headers = await get_headers_for_user(self.user)
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+        self.list = await db(List.objects.create)(name="test list")
 
     async def asyncTearDown(self):
-        await self.client1.disconnect()
-        await self.client2.disconnect()
+        await self.client.disconnect()
 
     @async_test
-    async def test_broadcasts_one_per_router(self):
-        self.client1 = APICommunicator(
-            AuthMiddlewareStack(self.router1.as_consumer()), "/ws/subscribe/", self.headers
-        )
-        self.assertTrue(await self.client1.connect())
-        self.client2 = APICommunicator(
-            AuthMiddlewareStack(self.router2.as_consumer()), "/ws/subscribe/auth/", self.headers
-        )
-        self.assertTrue(await self.client2.connect())
-
-        req1 = await self.subscribe_to_list(self.client1)
-        req2 = await self.subscribe_to_list(self.client2)
-
-        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1, self.client1)
-        self.assertTrue(await self.client1.receive_nothing())
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req2, self.client2)
-        self.assertTrue(await self.client2.receive_nothing())
+    async def test_single_update(self):
+        self.todo = await db(Todo.objects.create)(list=self.list, text="test")
+        req = await self.subscribe_to_todo()
+        self.todo.text = "MODIFIED"
+        await db(self.todo.save)()
+        await self.assertReceivedUpdateForTodo(self.todo, UPDATED, req)
 
     @async_test
-    async def test_broadcasts_only_to_one(self):
-        self.client1 = APICommunicator(
-            AuthMiddlewareStack(self.router1.as_consumer()), "/ws/subscribe/", self.headers
-        )
-        self.assertTrue(await self.client1.connect())
-        self.client2 = APICommunicator(
-            AuthMiddlewareStack(self.router2.as_consumer()), "/ws/subscribe/auth/"
-        )
-        self.assertTrue(await self.client2.connect())
-
-        req1 = await self.subscribe_to_list(self.client1)
-        req2 = await self.subscribe_to_list(self.client2, 403)
-
-        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1, self.client1)
-        self.assertTrue(await self.client1.receive_nothing())
-        self.assertTrue(await self.client2.receive_nothing())
+    async def test_list_unsubscribe(self):
+        self.todo = await self.make_todo()
+        req = await self.subscribe_to_todo()
+        self.todo.text = "MODIFIED"
+        await db(self.todo.save)()
+        await self.assertReceivedUpdateForTodo(self.todo, UPDATED, req)
+        await self.unsubscribe(req)
+        self.todo.text = "MODIFIED AGAIN"
+        await db(self.todo.save)()
+        self.assertTrue(await self.client.receive_nothing())
 
 
 class BasicListTests(RestLiveTestCase):
+    """
+    Basic tests on list actions based on a foreign key.
+    """
+
     async def asyncSetUp(self):
         router = RealtimeRouter()
         router.register(TodoViewSet)
@@ -232,6 +219,143 @@ class PermissionsTests(RestLiveTestCase):
         # Assert that each connection has only received a single update.
         self.assertTrue(await self.client.receive_nothing())
         self.assertTrue(await self.auth_client.receive_nothing())
+
+
+class ViewKwargTests(RestLiveTestCase):
+    """
+    Tests to ensure that view kwargs (generally URL parameters) passed along with subscriptions are
+    properly handled in permissions and serializers.
+    """
+
+    async def asyncSetUp(self):
+        router = RealtimeRouter()
+        router.register(KwargViewSet)
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+        self.list = await db(List.objects.create)(name="test list")
+
+    async def asyncTearDown(self):
+        await self.client.disconnect()
+
+    @async_test
+    async def test_permission_with_kwargs_fails(self):
+        await self.subscribe_to_list(error=403)
+        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
+        self.assertTrue(await self.client.receive_nothing())
+
+    @async_test
+    async def test_permission_with_kwargs_succeeds(self):
+        await self.subscribe_to_list(kwargs={"password": "opensesame"})
+
+    @async_test
+    async def test_serializer_with_kwargs(self):
+        request_id = await self.subscribe_to_list(
+            kwargs={"password": "opensesame", "message": "hello"}
+        )
+        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
+        response = await self.client.receive_json_from()
+        self.assertDictEqual(
+            {
+                "type": "broadcast",
+                "id": request_id,
+                "model": "test_app.Todo",
+                "action": CREATED,
+                "instance": {"message": "hello"},
+            },
+            response,
+        )
+
+
+class QuerysetFetchTest(RestLiveTestCase):
+    """
+    Tests to make sure that subscriptions properly respect the queryset on the view.
+    """
+
+    async def asyncSetUp(self):
+        router = RealtimeRouter()
+        router.register(EmptyTodoViewSet)
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+        self.list = await db(List.objects.create)(name="test list")
+
+    async def asyncTearDown(self):
+        await self.client.disconnect()
+
+    @async_test
+    async def test_empty_queryset_not_found_list(self):
+        await self.subscribe_to_list()
+        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
+        self.assertTrue(await self.client.receive_nothing())
+
+    @async_test
+    async def test_empty_queryset_not_found_individual(self):
+        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
+        await self.subscribe("test_app.Todo", "pk", new_todo.pk, self.client)
+        response = await self.client.receive_json_from()
+        self.assertEqual(404, response["code"])
+        self.assertTrue(await self.client.receive_nothing())
+
+
+class MultiRouterTests(RestLiveTestCase):
+    """
+    Tests to ensure that multiple routers/consumers can be stood up on
+    separate domains and that they don't interfere with each other.
+    """
+
+    async def asyncSetUp(self):
+        self.list = await db(List.objects.create)(name="test list")
+        self.router1 = RealtimeRouter()
+        self.router1.register(TodoViewSet)
+        self.router2 = RealtimeRouter("auth")
+        self.router2.register(AuthedTodoViewSet)
+
+        self.user = await db(User.objects.create_user)("test")
+        self.headers = await get_headers_for_user(self.user)
+
+    async def asyncTearDown(self):
+        await self.client1.disconnect()
+        await self.client2.disconnect()
+
+    @async_test
+    async def test_broadcasts_one_per_router(self):
+        self.client1 = APICommunicator(
+            AuthMiddlewareStack(self.router1.as_consumer()), "/ws/subscribe/", self.headers
+        )
+        self.assertTrue(await self.client1.connect())
+        self.client2 = APICommunicator(
+            AuthMiddlewareStack(self.router2.as_consumer()), "/ws/subscribe/auth/", self.headers
+        )
+        self.assertTrue(await self.client2.connect())
+
+        req1 = await self.subscribe_to_list(self.client1)
+        req2 = await self.subscribe_to_list(self.client2)
+
+        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
+        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1, self.client1)
+        self.assertTrue(await self.client1.receive_nothing())
+        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req2, self.client2)
+        self.assertTrue(await self.client2.receive_nothing())
+
+    @async_test
+    async def test_broadcasts_only_to_one(self):
+        self.client1 = APICommunicator(
+            AuthMiddlewareStack(self.router1.as_consumer()), "/ws/subscribe/", self.headers
+        )
+        self.assertTrue(await self.client1.connect())
+        self.client2 = APICommunicator(
+            AuthMiddlewareStack(self.router2.as_consumer()), "/ws/subscribe/auth/"
+        )
+        self.assertTrue(await self.client2.connect())
+
+        req1 = await self.subscribe_to_list(self.client1)
+        req2 = await self.subscribe_to_list(self.client2, 403)
+
+        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
+        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1, self.client1)
+        self.assertTrue(await self.client1.receive_nothing())
+        self.assertTrue(await self.client2.receive_nothing())
 
 
 class RealtimeSetupErrorTests(RestLiveTestCase):

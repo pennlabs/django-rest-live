@@ -1,8 +1,10 @@
 from io import BytesIO
+from typing import Type
 
 from asgiref.sync import async_to_sync
 from channels.http import AsgiRequest
 from channels.layers import get_channel_layer
+from django.db.models import Model
 from django.db.models.signals import post_save
 from django.utils.decorators import classonlymethod
 
@@ -35,7 +37,7 @@ def _send_update(sender_model, instance, action, group_by_fields):
 class RealtimeMixin(object):
     group_by_fields = []
 
-    def get_model_class(self):
+    def get_model_class(self) -> Type[Model]:
         # TODO: Better model inference from `get_queryset` if we can.
         assert getattr(self, "queryset", None) is not None or hasattr(self, "get_queryset"), (
             f"{self.__class__.__name__} does not define a `.queryset` attribute and so no backing model could be"
@@ -109,7 +111,7 @@ class RealtimeMixin(object):
         try:
             instance = self.get_queryset().get(pk=instance_pk)
         except model.DoesNotExist:
-            return
+            return None, None
 
         serializer_class = self.get_serializer_class()
         serializer = serializer_class(

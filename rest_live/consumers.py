@@ -2,6 +2,7 @@ from typing import Any, Dict, Type, List
 
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import JsonWebsocketConsumer
+from django.db.models import Model
 
 from rest_live import DEFAULT_GROUP_BY_FIELD, get_group_name
 from rest_live.mixins import RealtimeMixin
@@ -98,9 +99,16 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 return
 
             kwargs = content.get("kwargs", dict())
-            if not self.registry[model_label].user_can_subscribe(
-                group_by_field, value, self.scope, kwargs
-            ):
+            model = self.registry[model_label]().get_model_class()
+            try:
+                has_permission = self.registry[model_label].user_can_subscribe(
+                    group_by_field, value, self.scope, kwargs
+                )
+            except model.DoesNotExist:
+                self.send_error(request_id, 404, "Instance not found.")
+                return
+
+            if not has_permission:
                 self.send_error(
                     request_id,
                     403,
@@ -126,11 +134,12 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
         for request_id in self.subscriptions[channel_name]:
             kwargs = self.kwargs.get(request_id, dict())
+            print(kwargs)
             instance_data, renderer = viewset.broadcast(
                 instance_pk,
                 group_by_field,
                 self.scope,
-                view_kwargs=kwargs,
+                kwargs,
             )
             if instance_data is not None:
                 self.send_broadcast(request_id, model_label, action, instance_data, renderer)
