@@ -10,25 +10,26 @@ class RealtimeRouter:
     a Django Channels Consumer to handle subscriptions for those models.
     """
 
-    def __init__(self, uid="default"):
+    def __init__(self, public=True, uid="default"):
         self.registry: Dict[str, Type[RealtimeMixin]] = dict()
         self.uid = uid
+        self.public = public
 
-    def register_all(self, viewsets):
-        for viewset in viewsets:
+    def register_all(self, views):
+        for viewset in views:
             self.register(viewset)
 
-    def register(self, viewset):
-        if not hasattr(viewset, "register_signal_handler"):
+    def register(self, view):
+        if not hasattr(view, "register_signal_handler"):
             raise RuntimeError(
-                f"View {viewset.__name__}"
+                f"View {view.__name__}"
                 "passed to RealtimeRouter does not have RealtimeMixin applied."
             )
-        label = viewset.register_signal_handler(self.uid)
+        label = view.register_signal_handler(self.uid)
         if label in self.registry:
             raise RuntimeWarning("You should not register two realitime views for the same model.")
 
-        self.registry[label] = viewset
+        self.registry[label] = view
 
     def as_consumer(self):
         # Create a subclass of `SubscriptionConsumer` where the consumer's model
@@ -36,5 +37,5 @@ class RealtimeRouter:
         return type(
             "BoundSubscriptionConsumer",
             (SubscriptionConsumer,),
-            dict(registry=self.registry),
+            dict(registry=self.registry, public=self.public),
         )

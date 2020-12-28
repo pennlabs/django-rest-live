@@ -322,6 +322,46 @@ class QuerysetFetchTest(RestLiveTestCase):
         await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req)
 
 
+class PrivateRouterTests(RestLiveTestCase):
+
+    async def asyncSetUp(self):
+        self.list = await db(List.objects.create)(name="test list")
+        self.router = RealtimeRouter(public=False)
+        self.router.register(TodoViewSet)
+
+    @async_test
+    async def test_reject_no_auth(self):
+        self.client = APICommunicator(
+            AuthMiddlewareStack(self.router.as_consumer()),
+            "/ws/subscribe/",
+        )
+        connected, code = await self.client.connect()
+        self.assertFalse(connected)
+        self.assertEqual(4003, code)
+
+    @async_test
+    async def test_reject_no_middleware(self):
+        self.client = APICommunicator(
+            self.router.as_consumer(),
+            "/ws/subscribe/",
+        )
+        connected, code = await self.client.connect()
+        self.assertFalse(connected)
+        self.assertEqual(4003, code)
+
+    @async_test
+    async def test_accept_with_auth(self):
+        user = await db(User.objects.create_user)("test")
+        headers = await get_headers_for_user(user)
+        self.client = APICommunicator(
+            AuthMiddlewareStack(self.router.as_consumer()),
+            "/ws/subscribe/",
+            headers
+        )
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+
+
 class MultiRouterTests(RestLiveTestCase):
     """
     Tests to ensure that multiple routers/consumers can be stood up on

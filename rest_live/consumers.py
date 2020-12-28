@@ -12,7 +12,7 @@ KwargType = Dict[str, Union[int, str]]
 class SubscriptionConsumer(JsonWebsocketConsumer):
     """
     Consumer that handles websocket connections, collecting subscriptions and sending broadcasts.
-    Userful consumers which have a registry of views must subclass `SubscriptionConsumer` and override the `registry`
+    Useful consumers which have a registry of views must subclass `SubscriptionConsumer` and override the `registry`
     property.
 
     One instance of a Consumer class communicates with exactly one client.
@@ -21,8 +21,8 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
     public = True
 
     def connect(self):
-        if not self.public and not (self.scope("user") is not None and self.scope("user").is_authenticated):
-            self.disconnect(code=4003)
+        if not self.public and not (self.scope.get("user") is not None and self.scope.get("user").is_authenticated):
+            self.close(code=4003)
 
         self.subscriptions: Dict[str, List[int]] = dict()  # Maps group name to list of request IDs.
         self.actions: Dict[int, str] = dict()  # Request ID to action (list or retrieve).
