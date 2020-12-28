@@ -270,8 +270,6 @@ class ViewKwargTests(RestLiveTestCase):
         )
 
 
-# Bug: if you change a field that makes it leave the QS, that update
-# will never get broadcast to the client.
 class QuerysetFetchTest(RestLiveTestCase):
     """
     Tests to make sure that subscriptions properly respect the queryset on the view.
