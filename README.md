@@ -243,15 +243,14 @@ Note that `DELETED` actions can't be triggered from actual deletions from the da
 ### Request objects and view keyword arguments
 Django REST Framework makes heavy use of the [`Request`](https://www.django-rest-framework.org/api-guide/requests/)
 object as a general context throughout the framework.
-[permissions](https://www.django-rest-framework.org/api-guide/permissions/) are a good example: each permission check
+[Permissions](https://www.django-rest-framework.org/api-guide/permissions/) are a good example: each permission check
 gets passed the `request` object along with the current `view` in order to verify if
 a given request has permission to view an object. 
 
 However, broadcasts originate from database updates rather than an HTTP request, so
 `django-rest-live` uses the HTTP request that establishes the websocket connection as a basis for the `request`
 object accessible in views, permissions and serializers. `request.user` and `request.session`, normally populated
-via middleware, are available as expected. `view.action` is `retrieve` when the group-by field is either `pk` or `id`,
-and `list` otherwise.
+via middleware, are available as expected.
 
 Something that can't be
 inferred, however, are [view keyword arguments](https://docs.djangoproject.com/en/3.1/ref/urls/#django.urls.path),
