@@ -102,9 +102,6 @@ class APICommunicator(ApplicationCommunicator):
         await self.send_input({"type": "websocket.disconnect", "code": code})
         await self.wait(timeout)
 
-    async def receive_nothing(self, timeout=0.1, interval=0.01):
-        return await super().receive_nothing(.05, interval)
-
 
 def async_test(fun):
     async def wrapped(self, *args, **kwargs):

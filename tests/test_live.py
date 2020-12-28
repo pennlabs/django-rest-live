@@ -312,6 +312,10 @@ class QuerysetFetchTest(RestLiveTestCase):
         new_todo.text = "not special"
         await db(new_todo.save)()
         await self.assertReceivedBroadcastForTodo(new_todo, DELETED, req)
+        new_todo.text = "not special at all"
+        # Make sure we only send the delete message once
+        await db(new_todo.save)()
+        self.assertTrue(await self.client.receive_nothing())
 
     @async_test
     async def test_filter_doesnt_match_then_does(self):
