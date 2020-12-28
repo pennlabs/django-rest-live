@@ -115,6 +115,7 @@ class BasicListTests(RestLiveTestCase):
         new_todo.done = True
         await db(new_todo.save)()
         await self.assertReceivedUpdateForTodo(new_todo, UPDATED, req2)
+        self.assertTrue(await self.client.receive_nothing())
 
         # Unsubscribe again, make sure no message is sent on update.
         await self.unsubscribe(req2)
@@ -295,11 +296,8 @@ class QuerysetFetchTest(RestLiveTestCase):
 
     @async_test
     async def test_empty_queryset_not_found_individual(self):
-        new_todo = await db(Todo.objects.create)(list=self.list, text="test")
-        await self.subscribe("test_app.Todo", "pk", new_todo.pk, self.client)
-        response = await self.client.receive_json_from()
-        self.assertEqual(404, response["code"])
-        self.assertTrue(await self.client.receive_nothing())
+        self.todo = await db(Todo.objects.create)(list=self.list, text="test")
+        await self.subscribe_to_todo(client=self.client, error=404)
 
 
 class MultiRouterTests(RestLiveTestCase):

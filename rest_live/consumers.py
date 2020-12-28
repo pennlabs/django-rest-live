@@ -1,4 +1,4 @@
-from typing import Any, Dict, Type, List
+from typing import Any, Dict, Type, List, Union, Set
 
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import JsonWebsocketConsumer
@@ -13,10 +13,10 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
     def connect(self):
         self.scope["method"] = "GET"
-        self.user = self.scope.get("user", None)
-        self.session = self.scope.get("session", dict())
-        self.subscriptions = dict()
-        self.kwargs = dict()
+        self.subscriptions: Dict[str, List[int]] = dict()  # Maps group name to list of request IDs
+        self.actions: Dict[int, str] = dict()  # Request ID to action (list or retrieve)
+        self.kwargs: Dict[int, Dict[str, Union[int, str]]] = dict()  # Request ID to view kwargs
+        self.pks: Dict[int, Set[int]] = dict()
         self.accept()
 
     def add_subscription(self, group_name, request_id, **kwargs):
@@ -81,15 +81,6 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 self.send_error(request_id, 400, "No model specified")
                 return
 
-            # TODO: Switch from PK to lookup field for the viewset.
-            # TODO: These fields go unused as of now.
-            group_by_field = content.get("group_by", DEFAULT_GROUP_BY_FIELD)
-            value = content.get("value", None)
-
-            if value is None:
-                self.send_error(request_id, 400, f"No value specified in subscription")
-                return
-
             if model_label not in self.registry:
                 self.send_error(
                     request_id,
@@ -98,13 +89,22 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 )
                 return
 
+            viewset_action = content.get("action", None)
+            if viewset_action is None or viewset_action not in ["list", "retrieve"]:
+                self.send_error(
+                    request_id,
+                    400,
+                    "action must be present and the value must be either `list` or `retrieve`.",
+                )
+
+            lookup_value = content.get("lookup_by", None)
+
             kwargs = content.get("kwargs", dict())
             # TODO: Use the global app registry here instead of the viewset get_model_class()
-            model = self.registry[model_label]().get_model_class()
+            viewset = self.registry[model_label].from_scope(viewset_action, self.scope, kwargs)
+            model = viewset.get_model_class()
             try:
-                has_permission = self.registry[model_label].user_can_subscribe(
-                    group_by_field, value, self.scope, kwargs
-                )
+                has_permission = viewset.user_can_subscribe(lookup_value)
             except model.DoesNotExist:
                 self.send_error(request_id, 404, "Instance not found.")
                 return
@@ -113,15 +113,14 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 self.send_error(
                     request_id,
                     403,
-                    f"Unauthorized to subscribe to {model_label} by field {group_by_field}",
+                    f"Unauthorized to subscribe to {model_label} for action {viewset_action}",
                 )
                 return
 
-            group_name = get_group_name(model_label, group_by_field, value)
-            # TODO: Clean up to remove group_by_field and value
-            # group_name = get_group_name(model_label, "", "")
+            group_name = get_group_name(model_label)
             self.add_subscription(group_name, request_id, **kwargs)
-            self.pks = self.registry[model_label].get_list_pks(group_by_field, self.scope, kwargs)
+            self.actions[request_id] = viewset_action
+            self.pks[request_id] = viewset.get_list_pks()
         elif message_type == "unsubscribe":
             self.remove_subscription(request_id)
         else:
@@ -129,29 +128,27 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
     def notify(self, event):
         channel_name = event["channel_name"]
-        group_by_field = event["group_by_field"]
         instance_pk = event["instance_pk"]
-        action = event["action"]
+        model_action = event["action"]
         model_label = event["model"]
 
-        viewset = self.registry[model_label]
+        viewset_class = self.registry[model_label]
 
         for request_id in self.subscriptions[channel_name]:
             kwargs = self.kwargs.get(request_id, dict())
-            instance_data, renderer = viewset.prepare_broadcast(
-                instance_pk,
-                group_by_field,
-                self.scope,
-                kwargs,
-                self.pks
+            viewset_action = self.actions[request_id]
+            viewset = viewset_class.from_scope(viewset_action, self.scope, kwargs)
+            instance_data, renderer = viewset.get_data_to_broadcast(
+                instance_pk, self.pks[request_id]
             )
+
             if instance_data is not None:
-                self.pks.add(instance_pk)
-                self.send_broadcast(request_id, model_label, action, instance_data, renderer)
+                self.pks[request_id].add(instance_pk)
+                self.send_broadcast(request_id, model_label, model_action, instance_data, renderer)
             else:
                 # TODO: Send delete action if we get the right signal from `viewset.broadcast`
                 if instance_pk in self.pks:
-                    self.pks.remove(instance_pk)
+                    self.pks[request_id].remove(instance_pk)
                 pass
 
 

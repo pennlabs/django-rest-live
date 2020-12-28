@@ -22,7 +22,7 @@ class RestLiveTestCase(TransactionTestCase):
         super().__init__(*args, **kwargs)
         self.counter = 0
 
-    async def subscribe(self, model, group_by, value, client=None, kwargs=None):
+    async def subscribe(self, model, action, value=None, client=None, kwargs=None):
         if kwargs is None:
             kwargs = dict()
         self.counter += 1
@@ -35,9 +35,11 @@ class RestLiveTestCase(TransactionTestCase):
             "type": "subscribe",
             "id": request_id,
             "model": model,
-            "group_by": group_by,
-            "value": value,
+            "action": action,
         }
+        if value is not None:
+            payload["lookup_by"] = value
+
         if kwargs is not None:
             payload["kwargs"] = kwargs
 
@@ -76,7 +78,7 @@ class RestLiveTestCase(TransactionTestCase):
         if client is None:
             client = self.client
 
-        request_id = await self.subscribe("test_app.Todo", "pk", self.todo.pk, client, kwargs)
+        request_id = await self.subscribe("test_app.Todo", "retrieve", self.todo.pk, client, kwargs)
         if error is None:
             self.assertTrue(await client.receive_nothing())
         else:
@@ -90,7 +92,7 @@ class RestLiveTestCase(TransactionTestCase):
         if client is None:
             client = self.client
 
-        request_id = await self.subscribe("test_app.Todo", "list_id", self.list.pk, client, kwargs)
+        request_id = await self.subscribe("test_app.Todo", "list", None, client, kwargs)
         if error is None:
             self.assertTrue(await client.receive_nothing())
         else:

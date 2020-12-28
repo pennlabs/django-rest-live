@@ -9,31 +9,24 @@ from django.db.models.signals import post_save
 from django.utils.decorators import classonlymethod
 
 from rest_framework.renderers import BaseRenderer
-from rest_framework.viewsets import ModelViewSet
 
 from rest_live import get_group_name, CREATED, UPDATED
 
 
-def _send_update(sender_model, instance, action, group_by_fields):
+def _send_update(sender_model, instance, action):
     model_label = sender_model._meta.label  # noqa
     channel_layer = get_channel_layer()
-    for group_by_field in group_by_fields:
-        field_value = getattr(instance, group_by_field)
-        group_name = get_group_name(model_label, group_by_field, field_value)
-        # TODO: Clean up code if we're just subscribing by the model.
-        # group_name = get_group_name(model_label, "", "")
-        async_to_sync(channel_layer.group_send)(
-            group_name,
-            {
-                "type": "notify",
-                "action": action,
-                "model": model_label,
-                "instance_pk": instance.pk,
-                "group_by_field": group_by_field,
-                "field_value": field_value,
-                "channel_name": group_name,
-            },
-        )
+    group_name = get_group_name(model_label)
+    async_to_sync(channel_layer.group_send)(
+        group_name,
+        {
+            "type": "notify",
+            "action": action,
+            "model": model_label,
+            "instance_pk": instance.pk,
+            "channel_name": group_name,
+        },
+    )
 
 
 class RealtimeMixin(object):
@@ -61,61 +54,45 @@ class RealtimeMixin(object):
     def register_realtime(cls, dispatch_uid):
         viewset = cls()
         model_class = viewset.get_model_class()
-        group_by_fields = list(
-            set(viewset.group_by_fields + [viewset.lookup_field])
-        )  # remove duplicates
 
         def save_callback(sender, instance, created, **kwargs):
-            _send_update(sender, instance, CREATED if created else UPDATED, group_by_fields)
+            _send_update(sender, instance, CREATED if created else UPDATED)
 
         post_save.connect(save_callback, sender=model_class, weak=False, dispatch_uid=f"rest-live")
         return viewset._get_model_class_label()
 
-    def _realtime_init(self, group_by_field, scope, view_kwargs):
+    @classonlymethod
+    def from_scope(cls, viewset_action, scope, view_kwargs):
+        self = cls()
         self.format_kwarg = None
         self.action_map = dict()
         self.args = []
         self.kwargs = view_kwargs
-
+        self.action = viewset_action
         base_request = AsgiRequest(scope, BytesIO())
         request = self.initialize_request(base_request)
         self.request = request
         request.user = scope.get("user", None)
         request.session = scope.get("session", None)
+        return self
 
-        if group_by_field == self.lookup_field:
-            self.action = "retrieve"
-        else:
-            self.action = "list"
-
-    @classmethod
-    def user_can_subscribe(cls, group_by_field, value, scope, view_kwargs):
-        self = cls()
-        self._realtime_init(group_by_field, scope, view_kwargs)
-
+    def user_can_subscribe(self, lookup_value):
         for permission in self.get_permissions():
             if not permission.has_permission(self.request, self):
                 return False
 
         if self.action == "retrieve":
-            instance = self.get_queryset().get(**{self.lookup_field: value})
+            instance = self.get_queryset().get(**{self.lookup_field: lookup_value})
             for permission in self.get_permissions():
                 if not permission.has_object_permission(self.request, self, instance):
                     return False
 
         return True
 
-    @classonlymethod
-    def get_list_pks(cls, group_by_field, scope, view_kwargs) -> Set[int]:
-        self = cls()
-        self._realtime_init(group_by_field, scope, view_kwargs)
-        return set([instance.pk for instance in self.get_queryset().all()])
+    def get_list_pks(self) -> Set[int]:
+        return set([instance["pk"] for instance in self.get_queryset().all().values("pk")])
 
-    # TODO: Rename this method... it's not actually doing the broadcast
-    @classonlymethod
-    def prepare_broadcast(cls, instance_pk, group_by_field, scope, view_kwargs, set_pks: Set[int]):
-        self = cls()
-        self._realtime_init(group_by_field, scope, view_kwargs)
+    def get_data_to_broadcast(self, instance_pk, set_pks: Set[int]):
         model = self.get_model_class()
 
         try:
