@@ -1,32 +1,15 @@
 from io import BytesIO
 from typing import Type, Set, Tuple, Dict, Any, Optional
 
-from asgiref.sync import async_to_sync
 from channels.http import AsgiRequest
-from channels.layers import get_channel_layer
 from django.db.models import Model
 from django.db.models.signals import post_save
 from django.utils.decorators import classonlymethod
 
 from rest_framework.renderers import BaseRenderer
 
-from rest_live import get_group_name, CREATED, UPDATED, DELETED
-
-
-def _send_update(sender_model, instance, action):
-    model_label = sender_model._meta.label  # noqa
-    channel_layer = get_channel_layer()
-    group_name = get_group_name(model_label)
-    async_to_sync(channel_layer.group_send)(
-        group_name,
-        {
-            "type": "notify",
-            "action": action,
-            "model": model_label,
-            "instance_pk": instance.pk,
-            "channel_name": group_name,
-        },
-    )
+from rest_live import CREATED, UPDATED, DELETED
+from rest_live.signals import save_handler
 
 
 class RealtimeMixin(object):
@@ -53,7 +36,7 @@ class RealtimeMixin(object):
         model_class = viewset.get_model_class()
 
         def save_callback(sender, instance, created, **kwargs):
-            _send_update(sender, instance, CREATED if created else UPDATED)
+            save_handler(sender, instance)
 
         post_save.connect(save_callback, sender=model_class, weak=False, dispatch_uid=f"rest-live")
         return viewset._get_model_class_label()
@@ -61,16 +44,19 @@ class RealtimeMixin(object):
     @classonlymethod
     def from_scope(cls, viewset_action, scope, view_kwargs):
         self = cls()
+
         self.format_kwarg = None
         self.action_map = dict()
         self.args = []
         self.kwargs = view_kwargs
-        self.action = viewset_action
+        self.action = viewset_action  # TODO: custom subscription actions?
+
         base_request = AsgiRequest(scope, BytesIO())
-        request = self.initialize_request(base_request)
-        self.request = request
-        request.user = scope.get("user", None)
-        request.session = scope.get("session", None)
+        # TODO: Run other middleware?
+        base_request.user = scope.get("user", None)
+        base_request.session = scope.get("session", None)
+
+        self.request = self.initialize_request(base_request)
         return self
 
     def user_can_subscribe(self, lookup_value):
@@ -90,12 +76,12 @@ class RealtimeMixin(object):
         return set([instance["pk"] for instance in self.get_queryset().all().values("pk")])
 
     def get_data_to_broadcast(
-        self, instance_pk, set_pks: Set[int]
+        self, instance_pk, owned_instance_pks: Set[int]
     ) -> Optional[Tuple[Dict[Any, Any], BaseRenderer, str]]:
         model = self.get_model_class()
         renderer: BaseRenderer = self.perform_content_negotiation(self.request)[0]
 
-        is_existing_instance = instance_pk in set_pks
+        is_existing_instance = instance_pk in owned_instance_pks
         try:
             instance = self.get_queryset().get(pk=instance_pk)
             action = UPDATED if is_existing_instance else CREATED

@@ -8,7 +8,7 @@ from rest_live.testing import APICommunicator
 from channels.db import database_sync_to_async as db
 
 from rest_live import CREATED, UPDATED, DELETED
-from rest_live.consumers import RealtimeRouter
+from rest_live.routers import RealtimeRouter
 from rest_live.testing import async_test, get_headers_for_user
 
 from test_app.models import List, Todo
