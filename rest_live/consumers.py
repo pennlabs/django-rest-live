@@ -10,42 +10,26 @@ KwargType = Dict[str, Union[int, str]]
 
 
 class SubscriptionConsumer(JsonWebsocketConsumer):
+    """
+    Consumer that handles websocket connections, collecting subscriptions and sending broadcasts.
+    Userful consumers which have a registry of views must subclass `SubscriptionConsumer` and override the `registry`
+    property.
+
+    One instance of a Consumer class communicates with exactly one client.
+    """
     registry: Dict[str, Type[RealtimeMixin]] = dict()
+    public = True
 
     def connect(self):
-        self.scope["method"] = "GET"
-        self.subscriptions: Dict[str, List[int]] = dict()  # Maps group name to list of request IDs
-        self.actions: Dict[int, str] = dict()  # Request ID to action (list or retrieve)
-        self.kwargs: Dict[int, KwargType] = dict()  # Request ID to view kwargs
-        self.owned_instance_pks: Dict[int, Set[int]] = dict()
+        if not self.public and not (self.scope("user") is not None and self.scope("user").is_authenticated):
+            self.disconnect(code=4003)
+
+        self.subscriptions: Dict[str, List[int]] = dict()  # Maps group name to list of request IDs.
+        self.actions: Dict[int, str] = dict()  # Request ID to action (list or retrieve).
+        self.kwargs: Dict[int, KwargType] = dict()  # Request ID to view kwargs.
+        self.visible_instance_pks: Dict[int, Set[int]] = dict()  # set of visible instances for every request.
+
         self.accept()
-
-    def add_subscription(self, group_name, request_id, **kwargs):
-        print(f"[REST-LIVE] got subscription to {group_name}")
-        self.subscriptions.setdefault(group_name, []).append(request_id)
-        self.groups.append(group_name)
-        self.kwargs[request_id] = kwargs
-        async_to_sync(self.channel_layer.group_add)(group_name, self.channel_name)
-
-    def remove_subscription(self, request_id):
-        try:
-            group_name = [k for k, v in self.subscriptions.items() if request_id in v][0]
-        except IndexError:
-            self.send_error(
-                request_id,
-                404,
-                "Attempted to unsubscribe for request ID before subscribing.",
-            )
-            return
-        if group_name not in self.subscriptions:
-            return
-
-        self.subscriptions[group_name].remove(request_id)
-        self.groups.remove(group_name)
-        if group_name not in self.groups:
-            async_to_sync(self.channel_layer.group_discard)(group_name, self.channel_name)
-        if len(self.subscriptions[group_name]) == 0:
-            del self.subscriptions[group_name]
 
     def send_error(self, request_id, code, message):
         self.send_json(
@@ -72,14 +56,18 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
         )
 
     def receive_json(self, content: Dict[str, Any], **kwargs):
+        """
+        Entrypoint for incoming messages from the connected client.
+        """
+
         request_id = content.get("id", None)
         if request_id is None:
-            return  # Can't send error message without request ID.
+            return  # Can't send error message without request ID, so just return.
         message_type = content.get("type", None)
         if message_type == "subscribe":
             model_label = content.get("model")
             if model_label is None:
-                self.send_error(request_id, 400, "No model specified")
+                self.send_error(request_id, 400, "No model specified.")
                 return
 
             if model_label not in self.registry:
@@ -90,28 +78,28 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 )
                 return
 
-            viewset_action = content.get("action", None)
-            if viewset_action is None or viewset_action not in ["list", "retrieve"]:
+            view_action = content.get("action", None)
+            if view_action is None or view_action not in ["list", "retrieve"]:
                 self.send_error(
                     request_id,
                     400,
-                    "action must be present and the value must be either `list` or `retrieve`.",
+                    "`action` must be present and the value must be either `list` or `retrieve`.",
                 )
 
             lookup_value = content.get("lookup_by", None)
+            view_kwargs = content.get("kwargs", dict())
 
-            kwargs = content.get("kwargs", dict())
-            # TODO: Use the global app registry here instead of the view get_model_class()
-            view = self.registry[model_label].from_scope(viewset_action, self.scope, kwargs)
+            view = self.registry[model_label].from_scope(view_action, self.scope, view_kwargs)
             model = view.get_model_class()
-            # Check permissions from the view.
 
+            # Check to make sure client has permissions to make this subscription.
             has_permission = True
             for permission in view.get_permissions():
                 has_permission = has_permission and permission.has_permission(
                     view.request, view
                 )
 
+            # Retrieve actions must check has_object_permission as well.
             if view.action == "retrieve":
                 try:
                     instance = view.get_queryset().get(**{view.lookup_field: lookup_value})
@@ -128,18 +116,50 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 self.send_error(
                     request_id,
                     403,
-                    f"Unauthorized to subscribe to {model_label} for action {viewset_action}",
+                    f"Unauthorized to subscribe to {model_label} for action {view_action}",
                 )
                 return
 
+            # If we've reached this point, then the client can subscribe.
             group_name = get_group_name(model_label)
-            self.add_subscription(group_name, request_id, **kwargs)
-            self.actions[request_id] = viewset_action
-            self.owned_instance_pks[request_id] = set(
+            print(f"[REST-LIVE] got subscription to {group_name}")
+
+            self.subscriptions.setdefault(group_name, []).append(request_id)
+            self.kwargs[request_id] = view_kwargs
+            self.actions[request_id] = view_action
+            self.visible_instance_pks[request_id] = set(
                 [instance1["pk"] for instance1 in view.get_queryset().all().values("pk")]
             )
+
+            # Add subscribe to updates from channel layer: this is the "actual" subscription action.
+            async_to_sync(self.channel_layer.group_add)(group_name, self.channel_name)
+            self.groups.append(group_name)
+
         elif message_type == "unsubscribe":
-            self.remove_subscription(request_id)
+            # Get the group name given the request_id
+            try:
+                # List comprehension is empty if the provided request_id doesn't show up for this consumer
+                group_name = [k for k, v in self.subscriptions.items() if request_id in v][0]
+            except IndexError:
+                self.send_error(
+                    request_id,
+                    404,
+                    "Attempted to unsubscribe for request ID before subscribing.",
+                )
+                return
+
+            del self.actions[request_id]
+            del self.kwargs[request_id]
+            del self.visible_instance_pks[request_id]
+
+            self.subscriptions[group_name].remove(request_id)
+            self.groups.remove(group_name)  # Removes the first occurance of this group name.
+            if group_name not in self.groups:  # If there are no more occurances, unsubscribe to the channel layer.
+                async_to_sync(self.channel_layer.group_discard)(group_name, self.channel_name)
+
+            # Delete the key in the dictionary if no more subscriptions.
+            if len(self.subscriptions[group_name]) == 0:
+                del self.subscriptions[group_name]
         else:
             self.send_error(request_id, 400, f"unknown message type `{message_type}`.")
 
@@ -158,7 +178,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             model = viewset.get_model_class()
             renderer = viewset.perform_content_negotiation(viewset.request)[0]
 
-            is_existing_instance = instance_pk in self.owned_instance_pks[request_id]
+            is_existing_instance = instance_pk in self.visible_instance_pks[request_id]
             try:
                 instance = viewset.get_queryset().get(pk=instance_pk)
                 action = UPDATED if is_existing_instance else CREATED
@@ -190,7 +210,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
             # We don't need to check for membership since it's implicit given broadcast_data isn't None.
             if action == DELETED:
-                self.owned_instance_pks[request_id].remove(instance_pk)
+                self.visible_instance_pks[request_id].remove(instance_pk)
             else:
-                self.owned_instance_pks[request_id].add(instance_pk)
+                self.visible_instance_pks[request_id].add(instance_pk)
             self.send_broadcast(request_id, model_label, action, instance_data, renderer)
