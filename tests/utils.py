@@ -100,10 +100,10 @@ class RestLiveTestCase(TransactionTestCase):
             self.assertTrue(error, msg["code"])
         return request_id
 
-    async def make_todo(self):
-        return await db(Todo.objects.create)(list=self.list, text="test")
+    async def make_todo(self, text="test"):
+        return await db(Todo.objects.create)(list=self.list, text=text)
 
-    async def assertReceivedUpdateForTodo(
+    async def assertReceivedBroadcastForTodo(
         self, todo, action, request_id, communicator=None, serializer=TodoSerializer
     ):
         await self.assertResponseEquals(

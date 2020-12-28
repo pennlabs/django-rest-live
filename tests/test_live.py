@@ -17,8 +17,7 @@ from test_app.views import (
     TodoViewSet,
     AuthedTodoViewSet,
     ConditionalTodoViewSet,
-    EmptyTodoViewSet,
-    KwargViewSet,
+    KwargViewSet, FilteredViewSet,
 )
 from tests.utils import RestLiveTestCase
 
@@ -49,7 +48,7 @@ class BasicResourceTests(RestLiveTestCase):
         req = await self.subscribe_to_todo()
         self.todo.text = "MODIFIED"
         await db(self.todo.save)()
-        await self.assertReceivedUpdateForTodo(self.todo, UPDATED, req)
+        await self.assertReceivedBroadcastForTodo(self.todo, UPDATED, req)
 
     @async_test
     async def test_list_unsubscribe(self):
@@ -57,7 +56,7 @@ class BasicResourceTests(RestLiveTestCase):
         req = await self.subscribe_to_todo()
         self.todo.text = "MODIFIED"
         await db(self.todo.save)()
-        await self.assertReceivedUpdateForTodo(self.todo, UPDATED, req)
+        await self.assertReceivedBroadcastForTodo(self.todo, UPDATED, req)
         await self.unsubscribe(req)
         self.todo.text = "MODIFIED AGAIN"
         await db(self.todo.save)()
@@ -87,14 +86,14 @@ class BasicListTests(RestLiveTestCase):
         req = await self.subscribe_to_list()
 
         new_todo = await db(Todo.objects.create)(list=self.list, text="test")
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req)
+        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req)
 
     @async_test
     async def test_list_unsubscribe(self):
         req = await self.subscribe_to_list()
 
         new_todo = await self.make_todo()
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req)
+        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req)
         await self.unsubscribe(req)
         await self.make_todo()
         self.assertTrue(await self.client.receive_nothing())
@@ -106,15 +105,15 @@ class BasicListTests(RestLiveTestCase):
         req2 = await self.subscribe_to_list()
 
         new_todo = await self.make_todo()
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1)
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req2)
+        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req1)
+        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req2)
         self.assertTrue(await self.client.receive_nothing())
 
         # Unsubscribe once, make sure the message is still sent on update.
         await self.unsubscribe(req1)
         new_todo.done = True
         await db(new_todo.save)()
-        await self.assertReceivedUpdateForTodo(new_todo, UPDATED, req2)
+        await self.assertReceivedBroadcastForTodo(new_todo, UPDATED, req2)
         self.assertTrue(await self.client.receive_nothing())
 
         # Unsubscribe again, make sure no message is sent on update.
@@ -129,7 +128,7 @@ class BasicListTests(RestLiveTestCase):
         req = await self.subscribe_to_list()
         new_todo.done = True
         await db(new_todo.save)()
-        await self.assertReceivedUpdateForTodo(new_todo, UPDATED, req)
+        await self.assertReceivedBroadcastForTodo(new_todo, UPDATED, req)
 
     # TODO: Fix delete
     # TODO: Think about adding a way to mark a field as a "conditional delete" so when it updates in the DB it
@@ -180,7 +179,7 @@ class PermissionsTests(RestLiveTestCase):
     async def test_list_sub_with_permission(self):
         req = await self.subscribe_to_list(self.auth_client)
         new_todo = await self.make_todo()
-        await self.assertReceivedUpdateForTodo(
+        await self.assertReceivedBroadcastForTodo(
             new_todo, CREATED, req, communicator=self.auth_client
         )
 
@@ -210,8 +209,8 @@ class PermissionsTests(RestLiveTestCase):
         req_auth = await self.subscribe_to_list(self.auth_client)
         new_todo = await self.make_todo()
 
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req, communicator=self.client)
-        await self.assertReceivedUpdateForTodo(
+        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req, communicator=self.client)
+        await self.assertReceivedBroadcastForTodo(
             new_todo,
             CREATED,
             req_auth,
@@ -279,7 +278,7 @@ class QuerysetFetchTest(RestLiveTestCase):
 
     async def asyncSetUp(self):
         router = RealtimeRouter()
-        router.register(EmptyTodoViewSet)
+        router.register(FilteredViewSet)
         self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
@@ -298,6 +297,12 @@ class QuerysetFetchTest(RestLiveTestCase):
     async def test_empty_queryset_not_found_individual(self):
         self.todo = await db(Todo.objects.create)(list=self.list, text="test")
         await self.subscribe_to_todo(client=self.client, error=404)
+
+    @async_test
+    async def test_filter_matches(self):
+        req = await self.subscribe_to_list()
+        new_todo = await self.make_todo("special")
+        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req)
 
 
 class MultiRouterTests(RestLiveTestCase):
@@ -335,9 +340,9 @@ class MultiRouterTests(RestLiveTestCase):
         req2 = await self.subscribe_to_list(self.client2)
 
         new_todo = await db(Todo.objects.create)(list=self.list, text="test")
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1, self.client1)
+        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req1, self.client1)
         self.assertTrue(await self.client1.receive_nothing())
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req2, self.client2)
+        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req2, self.client2)
         self.assertTrue(await self.client2.receive_nothing())
 
     @async_test
@@ -355,7 +360,7 @@ class MultiRouterTests(RestLiveTestCase):
         req2 = await self.subscribe_to_list(self.client2, 403)
 
         new_todo = await db(Todo.objects.create)(list=self.list, text="test")
-        await self.assertReceivedUpdateForTodo(new_todo, CREATED, req1, self.client1)
+        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req1, self.client1)
         self.assertTrue(await self.client1.receive_nothing())
         self.assertTrue(await self.client2.receive_nothing())
 

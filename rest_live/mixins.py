@@ -30,9 +30,6 @@ def _send_update(sender_model, instance, action):
 
 
 class RealtimeMixin(object):
-    # TODO: Remove if we don't need it
-    group_by_fields = []
-
     def get_model_class(self) -> Type[Model]:
         # TODO: Better model inference from `get_queryset` if we can.
         assert getattr(self, "queryset", None) is not None or hasattr(self, "get_queryset"), (
