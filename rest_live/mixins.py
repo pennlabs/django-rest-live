@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Type
+from typing import Type, Set
 
 from asgiref.sync import async_to_sync
 from channels.http import AsgiRequest
@@ -20,6 +20,8 @@ def _send_update(sender_model, instance, action, group_by_fields):
     for group_by_field in group_by_fields:
         field_value = getattr(instance, group_by_field)
         group_name = get_group_name(model_label, group_by_field, field_value)
+        # TODO: Clean up code if we're just subscribing by the model.
+        # group_name = get_group_name(model_label, "", "")
         async_to_sync(channel_layer.group_send)(
             group_name,
             {
@@ -35,6 +37,7 @@ def _send_update(sender_model, instance, action, group_by_fields):
 
 
 class RealtimeMixin(object):
+    # TODO: Remove if we don't need it
     group_by_fields = []
 
     def get_model_class(self) -> Type[Model]:
@@ -103,17 +106,28 @@ class RealtimeMixin(object):
         return True
 
     @classonlymethod
-    def broadcast(cls, instance_pk, group_by_field, scope, view_kwargs):
+    def get_list_pks(cls, group_by_field, scope, view_kwargs) -> Set[int]:
         self = cls()
         self._realtime_init(group_by_field, scope, view_kwargs)
+        return set([instance.pk for instance in self.get_queryset().all()])
 
+    # TODO: Rename this method... it's not actually doing the broadcast
+    @classonlymethod
+    def prepare_broadcast(cls, instance_pk, group_by_field, scope, view_kwargs, set_pks: Set[int]):
+        self = cls()
+        self._realtime_init(group_by_field, scope, view_kwargs)
         model = self.get_model_class()
+
         try:
             instance = self.get_queryset().get(pk=instance_pk)
         except model.DoesNotExist:
+            if instance_pk in set_pks:
+                # TODO: Send delete action
+                pass
             return None, None
 
         serializer_class = self.get_serializer_class()
+        renderer: BaseRenderer = self.perform_content_negotiation(self.request)[0]
         serializer = serializer_class(
             instance,
             context={
@@ -122,6 +136,5 @@ class RealtimeMixin(object):
                 "view": self,
             },
         )
-        renderer: BaseRenderer = self.perform_content_negotiation(self.request)[0]
 
         return serializer.data, renderer

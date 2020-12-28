@@ -57,7 +57,6 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
         )
 
     def send_broadcast(self, request_id, model_label, action, instance_data, renderer):
-        # TODO: Read about content negotiation and pull this out from the mixin into the consumer
         # https://www.django-rest-framework.org/api-guide/content-negotiation/
         self.send(
             text_data=renderer.render(
@@ -83,6 +82,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 return
 
             # TODO: Switch from PK to lookup field for the viewset.
+            # TODO: These fields go unused as of now.
             group_by_field = content.get("group_by", DEFAULT_GROUP_BY_FIELD)
             value = content.get("value", None)
 
@@ -99,6 +99,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 return
 
             kwargs = content.get("kwargs", dict())
+            # TODO: Use the global app registry here instead of the viewset get_model_class()
             model = self.registry[model_label]().get_model_class()
             try:
                 has_permission = self.registry[model_label].user_can_subscribe(
@@ -117,7 +118,10 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 return
 
             group_name = get_group_name(model_label, group_by_field, value)
+            # TODO: Clean up to remove group_by_field and value
+            # group_name = get_group_name(model_label, "", "")
             self.add_subscription(group_name, request_id, **kwargs)
+            self.pks = self.registry[model_label].get_list_pks(group_by_field, self.scope, kwargs)
         elif message_type == "unsubscribe":
             self.remove_subscription(request_id)
         else:
@@ -134,15 +138,21 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
         for request_id in self.subscriptions[channel_name]:
             kwargs = self.kwargs.get(request_id, dict())
-            print(kwargs)
-            instance_data, renderer = viewset.broadcast(
+            instance_data, renderer = viewset.prepare_broadcast(
                 instance_pk,
                 group_by_field,
                 self.scope,
                 kwargs,
+                self.pks
             )
             if instance_data is not None:
+                self.pks.add(instance_pk)
                 self.send_broadcast(request_id, model_label, action, instance_data, renderer)
+            else:
+                # TODO: Send delete action if we get the right signal from `viewset.broadcast`
+                if instance_pk in self.pks:
+                    self.pks.remove(instance_pk)
+                pass
 
 
 class RealtimeRouter:

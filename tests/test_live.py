@@ -131,6 +131,8 @@ class BasicListTests(RestLiveTestCase):
         await self.assertReceivedUpdateForTodo(new_todo, UPDATED, req)
 
     # TODO: Fix delete
+    # TODO: Think about adding a way to mark a field as a "conditional delete" so when it updates in the DB it
+    #       sends the delete signal to the frontend
     # @async_test
     # async def test_list_subscribe_delete(self):
     #     new_todo: Todo = await self.make_todo()
@@ -267,6 +269,8 @@ class ViewKwargTests(RestLiveTestCase):
         )
 
 
+# Bug: if you change a field that makes it leave the QS, that update
+# will never get broadcast to the client.
 class QuerysetFetchTest(RestLiveTestCase):
     """
     Tests to make sure that subscriptions properly respect the queryset on the view.
