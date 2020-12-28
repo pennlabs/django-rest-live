@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Type, Set
+from typing import Type, Set, Tuple, Dict, Any, Optional
 
 from asgiref.sync import async_to_sync
 from channels.http import AsgiRequest
@@ -89,19 +89,27 @@ class RealtimeMixin(object):
     def get_list_pks(self) -> Set[int]:
         return set([instance["pk"] for instance in self.get_queryset().all().values("pk")])
 
-    def get_data_to_broadcast(self, instance_pk, set_pks: Set[int]):
+    def get_data_to_broadcast(
+        self, instance_pk, set_pks: Set[int]
+    ) -> Optional[Tuple[Dict[Any, Any], BaseRenderer, bool]]:
         model = self.get_model_class()
+        renderer: BaseRenderer = self.perform_content_negotiation(self.request)[0]
 
         try:
             instance = self.get_queryset().get(pk=instance_pk)
+            is_delete = False
         except model.DoesNotExist:
-            if instance_pk in set_pks:
-                # TODO: Send delete action
-                pass
-            return None, None
+            if instance_pk not in set_pks:
+                # If the model doesn't exist in the queryset now, and also is not in the set of PKs that we've seen,
+                # then we truly don't have permission to see it.
+                return None
+
+            # If the instance has been seen, then we should get it from the database to serialize and send the delete
+            # message.
+            instance = model.objects.get(pk=instance_pk)
+            is_delete = True
 
         serializer_class = self.get_serializer_class()
-        renderer: BaseRenderer = self.perform_content_negotiation(self.request)[0]
         serializer = serializer_class(
             instance,
             context={
@@ -111,4 +119,4 @@ class RealtimeMixin(object):
             },
         )
 
-        return serializer.data, renderer
+        return serializer.data, renderer, is_delete

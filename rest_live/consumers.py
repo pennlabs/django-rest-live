@@ -4,7 +4,7 @@ from asgiref.sync import async_to_sync
 from channels.generic.websocket import JsonWebsocketConsumer
 from django.db.models import Model
 
-from rest_live import DEFAULT_GROUP_BY_FIELD, get_group_name
+from rest_live import DEFAULT_GROUP_BY_FIELD, get_group_name, DELETED
 from rest_live.mixins import RealtimeMixin
 
 
@@ -138,18 +138,18 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             kwargs = self.kwargs.get(request_id, dict())
             viewset_action = self.actions[request_id]
             viewset = viewset_class.from_scope(viewset_action, self.scope, kwargs)
-            instance_data, renderer = viewset.get_data_to_broadcast(
+            broadcast_data = viewset.get_data_to_broadcast(
                 instance_pk, self.pks[request_id]
             )
 
-            if instance_data is not None:
+            if broadcast_data is not None:
+                instance_data, renderer, is_delete = broadcast_data
                 self.pks[request_id].add(instance_pk)
-                self.send_broadcast(request_id, model_label, model_action, instance_data, renderer)
-            else:
-                # TODO: Send delete action if we get the right signal from `viewset.broadcast`
-                if instance_pk in self.pks:
+                self.send_broadcast(request_id, model_label, model_action if not is_delete else DELETED, instance_data, renderer)
+
+                # We don't need to check for membership since it's implicit given broadcast_data isn't None.
+                if is_delete:
                     self.pks[request_id].remove(instance_pk)
-                pass
 
 
 class RealtimeRouter:

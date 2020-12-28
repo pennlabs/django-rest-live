@@ -17,7 +17,8 @@ from test_app.views import (
     TodoViewSet,
     AuthedTodoViewSet,
     ConditionalTodoViewSet,
-    KwargViewSet, FilteredViewSet,
+    KwargViewSet,
+    FilteredViewSet,
 )
 from tests.utils import RestLiveTestCase
 

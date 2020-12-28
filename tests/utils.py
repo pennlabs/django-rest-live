@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TransactionTestCase
 from djangorestframework_camel_case.util import camelize
 
+from rest_live import DELETED
 from rest_live.testing import APICommunicator
 from test_app.models import List, Todo
 from test_app.serializers import TodoSerializer
@@ -64,13 +65,17 @@ class RestLiveTestCase(TransactionTestCase):
         self.assertDictEqual(response, expected)
 
     def make_todo_sub_response(self, todo, action, request_id, serializer=TodoSerializer):
-        return {
+        response = {
             "type": "broadcast",
             "id": request_id,
             "model": "test_app.Todo",
             "action": action,
-            "instance": camelize(serializer(todo).data),
         }
+        if action != DELETED:
+            response["instance"] = camelize(serializer(todo).data)
+        else:
+            response["instance"] = {"pk": todo.pk}
+        return response
 
     async def subscribe_to_todo(self, client=None, error=None, kwargs=None):
         if kwargs is None:
