@@ -135,12 +135,10 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
         viewset_class = self.registry[model_label]
 
         for request_id in self.subscriptions[channel_name]:
-            kwargs = self.kwargs.get(request_id, dict())
-            viewset_action = self.actions[request_id]
-            viewset = viewset_class.from_scope(viewset_action, self.scope, kwargs)
-            broadcast_data = viewset.get_data_to_broadcast(
-                instance_pk, self.pks[request_id]
+            viewset = viewset_class.from_scope(
+                self.actions[request_id], self.scope, self.kwargs[request_id]
             )
+            broadcast_data = viewset.get_data_to_broadcast(instance_pk, self.pks[request_id])
 
             if broadcast_data is not None:
                 instance_data, renderer, action = broadcast_data

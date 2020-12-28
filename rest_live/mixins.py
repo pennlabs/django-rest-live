@@ -110,14 +110,19 @@ class RealtimeMixin(object):
             instance = model.objects.get(pk=instance_pk)
             action = DELETED
 
-        serializer_class = self.get_serializer_class()
-        serializer = serializer_class(
-            instance,
-            context={
-                "request": self.request,
-                "format": "json",  # TODO: change this to be general based on content negotiation
-                "view": self,
-            },
-        )
+        if action == DELETED:
+            # If an object's deleted from a user's queryset, there's no guarantee that the user still
+            # has permission to see the contents of the instance, so the instance just returns the lookup_field.
+            payload = {self.lookup_field: getattr(instance, self.lookup_field)}
+        else:
+            serializer_class = self.get_serializer_class()
+            payload = serializer_class(
+                instance,
+                context={
+                    "request": self.request,
+                    "format": "json",  # TODO: change this to be general based on content negotiation
+                    "view": self,
+                },
+            ).data
 
-        return serializer.data, renderer, action
+        return payload, renderer, action
