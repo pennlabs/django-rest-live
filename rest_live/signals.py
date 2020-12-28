@@ -11,7 +11,7 @@ def save_handler(sender, instance, *args, **kwargs):
     async_to_sync(channel_layer.group_send)(
         group_name,
         {
-            "type": "notify",
+            "type": "model.saved",
             "model": model_label,
             "instance_pk": instance.pk,
             "channel_name": group_name,

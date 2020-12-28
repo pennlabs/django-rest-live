@@ -5,6 +5,11 @@ from rest_live.mixins import RealtimeMixin
 
 
 class RealtimeRouter:
+    """
+    This router collects views/model pairs that are registered as realtime-capable, and generates
+    a Django Channels Consumer to handle subscriptions for those models.
+    """
+
     def __init__(self, uid="default"):
         self.registry: Dict[str, Type[RealtimeMixin]] = dict()
         self.uid = uid
@@ -14,12 +19,12 @@ class RealtimeRouter:
             self.register(viewset)
 
     def register(self, viewset):
-        if not hasattr(viewset, "register_realtime"):
+        if not hasattr(viewset, "register_signal_handler"):
             raise RuntimeError(
                 f"View {viewset.__name__}"
                 "passed to RealtimeRouter does not have RealtimeMixin applied."
             )
-        label = viewset.register_realtime(self.uid)
+        label = viewset.register_signal_handler(self.uid)
         if label in self.registry:
             raise RuntimeWarning("You should not register two realitime views for the same model.")
 

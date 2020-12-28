@@ -6,14 +6,22 @@ from django.db.models import Model
 from django.db.models.signals import post_save
 from django.utils.decorators import classonlymethod
 
-from rest_framework.renderers import BaseRenderer
-
-from rest_live import CREATED, UPDATED, DELETED
 from rest_live.signals import save_handler
 
 
 class RealtimeMixin(object):
+    """
+    This mixin marks a DRF Generic APIView as realtime capable. It contains utility methods
+    used internally for initializing the view class based on a ASGI websocket scope and subscription
+    metadata rather than an HTTP request.
+    """
+
     def get_model_class(self) -> Type[Model]:
+        """
+        Get the model class from the `queryset` property on the view class. This method can be called
+        when a viewset hasn't been properly initialized, as long as there is a static `queryset` property.
+        """
+
         # TODO: Better model inference from `get_queryset` if we can.
         assert getattr(self, "queryset", None) is not None or hasattr(self, "get_queryset"), (
             f"{self.__class__.__name__} does not define a `.queryset` attribute and so no backing model could be"
@@ -27,22 +35,36 @@ class RealtimeMixin(object):
 
         return self.queryset.model
 
-    def _get_model_class_label(self):
-        return self.get_model_class()._meta.label  # noqa
-
     @classmethod
-    def register_realtime(cls, dispatch_uid):
+    def register_signal_handler(cls, dispatch_uid):
+        """
+        Register post_save signal handler for the view's model.
+        """
         viewset = cls()
         model_class = viewset.get_model_class()
 
-        def save_callback(sender, instance, created, **kwargs):
-            save_handler(sender, instance)
-
-        post_save.connect(save_callback, sender=model_class, weak=False, dispatch_uid=f"rest-live")
-        return viewset._get_model_class_label()
+        post_save.connect(save_handler, sender=model_class, dispatch_uid=f"rest-live")
+        return viewset.get_model_class()._meta.label
 
     @classonlymethod
     def from_scope(cls, viewset_action, scope, view_kwargs):
+        """
+        "This is the magic."
+        (reference: https://github.com/encode/django-rest-framework/blob/1e383f/rest_framework/viewsets.py#L47)
+
+        This method initializes a view properly so that calls to methods like get_queryset() and get_serializer_class(),
+        and permission checks have all the properties set, like self.kwargs and self.request, that they would expect.
+
+        The production of a Django HttpRequest object from a base websocket asgi scope, rather than an actual HTTP
+        request, is probably the largest "hack" in this project. By inspection of the ASGI spec, however,
+        the only difference between websocket and HTTP scopes is the existence of an HTTP method
+        (https://asgi.readthedocs.io/en/latest/specs/www.html).
+
+        This is because websocket connections are established over an HTTP connection, and so headers and everything
+        else are set just as they would be in a normal HTTP request. Therefore, the base of the request object for
+        every broadcast is the initial HTTP request. Subscriptions are retrieval operations, so the method is hard-coded
+        as GET.
+        """
         self = cls()
 
         self.format_kwarg = None
@@ -51,6 +73,7 @@ class RealtimeMixin(object):
         self.kwargs = view_kwargs
         self.action = viewset_action  # TODO: custom subscription actions?
 
+        scope["method"] = "GET"
         base_request = AsgiRequest(scope, BytesIO())
         # TODO: Run other middleware?
         base_request.user = scope.get("user", None)
@@ -58,57 +81,3 @@ class RealtimeMixin(object):
 
         self.request = self.initialize_request(base_request)
         return self
-
-    def user_can_subscribe(self, lookup_value):
-        for permission in self.get_permissions():
-            if not permission.has_permission(self.request, self):
-                return False
-
-        if self.action == "retrieve":
-            instance = self.get_queryset().get(**{self.lookup_field: lookup_value})
-            for permission in self.get_permissions():
-                if not permission.has_object_permission(self.request, self, instance):
-                    return False
-
-        return True
-
-    def get_list_pks(self) -> Set[int]:
-        return set([instance["pk"] for instance in self.get_queryset().all().values("pk")])
-
-    def get_data_to_broadcast(
-        self, instance_pk, owned_instance_pks: Set[int]
-    ) -> Optional[Tuple[Dict[Any, Any], BaseRenderer, str]]:
-        model = self.get_model_class()
-        renderer: BaseRenderer = self.perform_content_negotiation(self.request)[0]
-
-        is_existing_instance = instance_pk in owned_instance_pks
-        try:
-            instance = self.get_queryset().get(pk=instance_pk)
-            action = UPDATED if is_existing_instance else CREATED
-        except model.DoesNotExist:
-            if not is_existing_instance:
-                # If the model doesn't exist in the queryset now, and also is not in the set of PKs that we've seen,
-                # then we truly don't have permission to see it.
-                return None
-
-            # If the instance has been seen, then we should get it from the database to serialize and send the delete
-            # message.
-            instance = model.objects.get(pk=instance_pk)
-            action = DELETED
-
-        if action == DELETED:
-            # If an object's deleted from a user's queryset, there's no guarantee that the user still
-            # has permission to see the contents of the instance, so the instance just returns the lookup_field.
-            payload = {self.lookup_field: getattr(instance, self.lookup_field)}
-        else:
-            serializer_class = self.get_serializer_class()
-            payload = serializer_class(
-                instance,
-                context={
-                    "request": self.request,
-                    "format": "json",  # TODO: change this to be general based on content negotiation
-                    "view": self,
-                },
-            ).data
-
-        return payload, renderer, action
