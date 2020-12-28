@@ -10,7 +10,7 @@ from django.utils.decorators import classonlymethod
 
 from rest_framework.renderers import BaseRenderer
 
-from rest_live import get_group_name, CREATED, UPDATED
+from rest_live import get_group_name, CREATED, UPDATED, DELETED
 
 
 def _send_update(sender_model, instance, action):
@@ -91,15 +91,16 @@ class RealtimeMixin(object):
 
     def get_data_to_broadcast(
         self, instance_pk, set_pks: Set[int]
-    ) -> Optional[Tuple[Dict[Any, Any], BaseRenderer, bool]]:
+    ) -> Optional[Tuple[Dict[Any, Any], BaseRenderer, str]]:
         model = self.get_model_class()
         renderer: BaseRenderer = self.perform_content_negotiation(self.request)[0]
 
+        is_existing_instance = instance_pk in set_pks
         try:
             instance = self.get_queryset().get(pk=instance_pk)
-            is_delete = False
+            action = UPDATED if is_existing_instance else CREATED
         except model.DoesNotExist:
-            if instance_pk not in set_pks:
+            if not is_existing_instance:
                 # If the model doesn't exist in the queryset now, and also is not in the set of PKs that we've seen,
                 # then we truly don't have permission to see it.
                 return None
@@ -107,7 +108,7 @@ class RealtimeMixin(object):
             # If the instance has been seen, then we should get it from the database to serialize and send the delete
             # message.
             instance = model.objects.get(pk=instance_pk)
-            is_delete = True
+            action = DELETED
 
         serializer_class = self.get_serializer_class()
         serializer = serializer_class(
@@ -119,4 +120,4 @@ class RealtimeMixin(object):
             },
         )
 
-        return serializer.data, renderer, is_delete
+        return serializer.data, renderer, action

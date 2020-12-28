@@ -143,12 +143,12 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             )
 
             if broadcast_data is not None:
-                instance_data, renderer, is_delete = broadcast_data
+                instance_data, renderer, action = broadcast_data
                 self.pks[request_id].add(instance_pk)
-                self.send_broadcast(request_id, model_label, model_action if not is_delete else DELETED, instance_data, renderer)
+                self.send_broadcast(request_id, model_label, action, instance_data, renderer)
 
                 # We don't need to check for membership since it's implicit given broadcast_data isn't None.
-                if is_delete:
+                if action == DELETED:
                     self.pks[request_id].remove(instance_pk)
 
 

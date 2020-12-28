@@ -305,6 +305,22 @@ class QuerysetFetchTest(RestLiveTestCase):
         new_todo = await self.make_todo("special")
         await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req)
 
+    @async_test
+    async def test_filter_matches_then_doesnt(self):
+        new_todo = await self.make_todo("special")
+        req = await self.subscribe_to_list()
+        new_todo.text = "not special"
+        await db(new_todo.save)()
+        await self.assertReceivedBroadcastForTodo(new_todo, DELETED, req)
+
+    @async_test
+    async def test_filter_doesnt_match_then_does(self):
+        new_todo = await self.make_todo("not special")
+        req = await self.subscribe_to_list()
+        new_todo.text = "special"
+        await db(new_todo.save)()
+        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req)
+
 
 class MultiRouterTests(RestLiveTestCase):
     """

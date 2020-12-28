@@ -65,17 +65,13 @@ class RestLiveTestCase(TransactionTestCase):
         self.assertDictEqual(response, expected)
 
     def make_todo_sub_response(self, todo, action, request_id, serializer=TodoSerializer):
-        response = {
+        return {
             "type": "broadcast",
             "id": request_id,
             "model": "test_app.Todo",
             "action": action,
+            "instance": camelize(serializer(todo).data)
         }
-        if action != DELETED:
-            response["instance"] = camelize(serializer(todo).data)
-        else:
-            response["instance"] = {"pk": todo.pk}
-        return response
 
     async def subscribe_to_todo(self, client=None, error=None, kwargs=None):
         if kwargs is None:
