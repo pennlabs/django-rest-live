@@ -240,7 +240,7 @@ longer included in the queryset, the action in the broadcast will be `DELETED`.
 Note that `DELETED` actions can't be triggered from actual deletions from the database at this time.
 
 
-### Request objects and view keyword arguments
+### Request objects, query params and view keyword arguments
 Django REST Framework makes heavy use of the [`Request`](https://www.django-rest-framework.org/api-guide/requests/)
 object as a general context throughout the framework.
 [Permissions](https://www.django-rest-framework.org/api-guide/permissions/) are a good example: each permission check
@@ -255,7 +255,7 @@ via middleware, are available as expected.
 Something that can't be
 inferred, however, are [view keyword arguments](https://docs.djangoproject.com/en/3.1/ref/urls/#django.urls.path),
 normally derived from the URL path to a resource in HTTP requests.
-`django-rest-live` allows you to declare view arguments in your subscription request using the `kwargs` key:
+`django-rest-live` allows you to declare view arguments in your subscription request using the `view_kwargs` key:
 
 ```json
 {
@@ -264,7 +264,7 @@ normally derived from the URL path to a resource in HTTP requests.
   "model": "todolist.Task",
   "action": "retrieve",
   "lookup_by": 29,
-  "kwargs": {
+  "view_kwargs": {
     "list": 14 
   }
 }
@@ -272,6 +272,21 @@ normally derived from the URL path to a resource in HTTP requests.
 As a rule of thumb, if you have angle brackets in your URL pattern, like `title` in 
 `path('articles/<slug:title>/', views.article)`, then you're providing your view with
 keyword arguments, and you most likely need to provide those arguments to your View when requesting subscriptions too.
+
+If you use `request.query_params` in your view at all, potentially from
+[filters](https://www.django-rest-framework.org/api-guide/filtering/#filtering-against-query-parameters) on your queryset,
+You can also pass in query parameters to your subscription with the `query_params` key:
+```json
+{
+  "type": "subscribe",
+  "id": 1340,
+  "model": "todolist.Task",
+  "action": "list",
+  "query_params": {
+    "active": true
+  }
+}
+```
 
 If you're getting an `AttributeError` in your View when receiving a broadcast but not when doing normal HTTP REST
 operations, then you're probably making use of an attribute we didn't think of. In that case,

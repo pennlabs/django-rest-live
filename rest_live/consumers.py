@@ -17,17 +17,28 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
     One instance of a Consumer class communicates with exactly one client.
     """
+
     registry: Dict[str, Type[RealtimeMixin]] = dict()
     public = True
 
     def connect(self):
-        if not self.public and not (self.scope.get("user") is not None and self.scope.get("user").is_authenticated):
+        if not self.public and not (
+            self.scope.get("user") is not None
+            and self.scope.get("user").is_authenticated
+        ):
             self.close(code=4003)
 
-        self.subscriptions: Dict[str, List[int]] = dict()  # Maps group name to list of request IDs.
-        self.actions: Dict[int, str] = dict()  # Request ID to action (list or retrieve).
+        self.subscriptions: Dict[
+            str, List[int]
+        ] = dict()  # Maps group name to list of request IDs.
+        self.actions: Dict[
+            int, str
+        ] = dict()  # Request ID to action (list or retrieve).
         self.kwargs: Dict[int, KwargType] = dict()  # Request ID to view kwargs.
-        self.visible_instance_pks: Dict[int, Set[int]] = dict()  # set of visible instances for every request.
+        self.params: Dict[int, KwargType] = dict()  # Request ID to query params.
+        self.visible_instance_pks: Dict[
+            int, Set[int]
+        ] = dict()  # set of visible instances for every request.
 
         self.accept()
 
@@ -87,9 +98,12 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 )
 
             lookup_value = content.get("lookup_by", None)
-            view_kwargs = content.get("kwargs", dict())
+            view_kwargs = content.get("view_kwargs", dict())
+            query_params = content.get("query_params", dict())
 
-            view = self.registry[model_label].from_scope(view_action, self.scope, view_kwargs)
+            view = self.registry[model_label].from_scope(
+                view_action, self.scope, view_kwargs, query_params
+            )
             model = view.get_model_class()
 
             # Check to make sure client has permissions to make this subscription.
@@ -102,14 +116,19 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             # Retrieve actions must check has_object_permission as well.
             if view.action == "retrieve":
                 try:
-                    instance = view.get_queryset().get(**{view.lookup_field: lookup_value})
+                    instance = view.get_queryset().get(
+                        **{view.lookup_field: lookup_value}
+                    )
                 except model.DoesNotExist:
                     self.send_error(request_id, 404, "Instance not found.")
                     return
 
                 for permission in view.get_permissions():
-                    has_permission = has_permission and permission.has_object_permission(
-                        view.request, view, instance
+                    has_permission = (
+                        has_permission
+                        and permission.has_object_permission(
+                            view.request, view, instance
+                        )
                     )
 
             if not has_permission:
@@ -126,9 +145,13 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
             self.subscriptions.setdefault(group_name, []).append(request_id)
             self.kwargs[request_id] = view_kwargs
+            self.params[request_id] = query_params
             self.actions[request_id] = view_action
             self.visible_instance_pks[request_id] = set(
-                [instance1["pk"] for instance1 in view.get_queryset().all().values("pk")]
+                [
+                    instance1["pk"]
+                    for instance1 in view.get_queryset().all().values("pk")
+                ]
             )
 
             # Add subscribe to updates from channel layer: this is the "actual" subscription action.
@@ -139,7 +162,9 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             # Get the group name given the request_id
             try:
                 # List comprehension is empty if the provided request_id doesn't show up for this consumer
-                group_name = [k for k, v in self.subscriptions.items() if request_id in v][0]
+                group_name = [
+                    k for k, v in self.subscriptions.items() if request_id in v
+                ][0]
             except IndexError:
                 self.send_error(
                     request_id,
@@ -153,9 +178,15 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             del self.visible_instance_pks[request_id]
 
             self.subscriptions[group_name].remove(request_id)
-            self.groups.remove(group_name)  # Removes the first occurance of this group name.
-            if group_name not in self.groups:  # If there are no more occurances, unsubscribe to the channel layer.
-                async_to_sync(self.channel_layer.group_discard)(group_name, self.channel_name)
+            self.groups.remove(
+                group_name
+            )  # Removes the first occurance of this group name.
+            if (
+                group_name not in self.groups
+            ):  # If there are no more occurances, unsubscribe to the channel layer.
+                async_to_sync(self.channel_layer.group_discard)(
+                    group_name, self.channel_name
+                )
 
             # Delete the key in the dictionary if no more subscriptions.
             if len(self.subscriptions[group_name]) == 0:
@@ -172,7 +203,10 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
         for request_id in self.subscriptions[channel_name]:
             viewset = viewset_class.from_scope(
-                self.actions[request_id], self.scope, self.kwargs[request_id]
+                self.actions[request_id],
+                self.scope,
+                self.kwargs[request_id],
+                self.params[request_id],
             )
 
             model = viewset.get_model_class()
@@ -196,7 +230,9 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             if action == DELETED:
                 # If an object's deleted from a user's queryset, there's no guarantee that the user still
                 # has permission to see the contents of the instance, so the instance just returns the lookup_field.
-                instance_data = {viewset.lookup_field: getattr(instance, viewset.lookup_field)}
+                instance_data = {
+                    viewset.lookup_field: getattr(instance, viewset.lookup_field)
+                }
             else:
                 serializer_class = viewset.get_serializer_class()
                 instance_data = serializer_class(
@@ -213,4 +249,6 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 self.visible_instance_pks[request_id].remove(instance_pk)
             else:
                 self.visible_instance_pks[request_id].add(instance_pk)
-            self.send_broadcast(request_id, model_label, action, instance_data, renderer)
+            self.send_broadcast(
+                request_id, model_label, action, instance_data, renderer
+            )

@@ -5,6 +5,7 @@ from channels.http import AsgiRequest
 from django.db.models import Model
 from django.db.models.signals import post_save
 from django.utils.decorators import classonlymethod
+from django.utils.http import urlencode
 
 from rest_live.signals import save_handler
 
@@ -23,7 +24,9 @@ class RealtimeMixin(object):
         """
 
         # TODO: Better model inference from `get_queryset` if we can.
-        assert getattr(self, "queryset", None) is not None or hasattr(self, "get_queryset"), (
+        assert getattr(self, "queryset", None) is not None or hasattr(
+            self, "get_queryset"
+        ), (
             f"{self.__class__.__name__} does not define a `.queryset` attribute and so no backing model could be"
             "determined. Views must provide `.queryset` attribute in order to be realtime-compatible."
         )
@@ -47,7 +50,7 @@ class RealtimeMixin(object):
         return viewset.get_model_class()._meta.label
 
     @classonlymethod
-    def from_scope(cls, viewset_action, scope, view_kwargs):
+    def from_scope(cls, viewset_action, scope, view_kwargs, query_params):
         """
         "This is the magic."
         (reference: https://github.com/encode/django-rest-framework/blob/1e383f/rest_framework/viewsets.py#L47)
@@ -73,8 +76,10 @@ class RealtimeMixin(object):
         self.kwargs = view_kwargs
         self.action = viewset_action  # TODO: custom subscription actions?
 
-        scope["method"] = "GET"
-        base_request = AsgiRequest(scope, BytesIO())
+        base_request = AsgiRequest(
+            {**scope, "method": "GET", "query_string": urlencode(query_params)},
+            BytesIO(),
+        )
         # TODO: Run other middleware?
         base_request.user = scope.get("user", None)
         base_request.session = scope.get("session", None)

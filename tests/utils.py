@@ -23,9 +23,9 @@ class RestLiveTestCase(TransactionTestCase):
         super().__init__(*args, **kwargs)
         self.counter = 0
 
-    async def subscribe(self, model, action, value=None, client=None, kwargs=None):
-        if kwargs is None:
-            kwargs = dict()
+    async def subscribe(
+        self, model, action, value=None, client=None, kwargs=None, params=None
+    ):
         self.counter += 1
         request_id = self.counter
 
@@ -42,7 +42,9 @@ class RestLiveTestCase(TransactionTestCase):
             payload["lookup_by"] = value
 
         if kwargs is not None:
-            payload["kwargs"] = kwargs
+            payload["view_kwargs"] = kwargs
+        if params is not None:
+            payload["query_params"] = params
 
         await client.send_json_to(payload)
         return request_id
@@ -64,7 +66,9 @@ class RestLiveTestCase(TransactionTestCase):
         response = await client.receive_json_from()
         self.assertDictEqual(response, expected)
 
-    def make_todo_sub_response(self, todo, action, request_id, serializer=TodoSerializer):
+    def make_todo_sub_response(
+        self, todo, action, request_id, serializer=TodoSerializer
+    ):
         response = {
             "type": "broadcast",
             "id": request_id,
@@ -83,7 +87,9 @@ class RestLiveTestCase(TransactionTestCase):
         if client is None:
             client = self.client
 
-        request_id = await self.subscribe("test_app.Todo", "retrieve", self.todo.pk, client, kwargs)
+        request_id = await self.subscribe(
+            "test_app.Todo", "retrieve", self.todo.pk, client, kwargs
+        )
         if error is None:
             self.assertTrue(await client.receive_nothing())
         else:
@@ -91,13 +97,15 @@ class RestLiveTestCase(TransactionTestCase):
             self.assertTrue(error, msg["code"])
         return request_id
 
-    async def subscribe_to_list(self, client=None, error=None, kwargs=None):
-        if kwargs is None:
-            kwargs = dict()
+    async def subscribe_to_list(
+        self, client=None, error=None, kwargs=None, params=None
+    ):
         if client is None:
             client = self.client
 
-        request_id = await self.subscribe("test_app.Todo", "list", None, client, kwargs)
+        request_id = await self.subscribe(
+            "test_app.Todo", "list", None, client, kwargs, params
+        )
         if error is None:
             self.assertTrue(await client.receive_nothing())
         else:

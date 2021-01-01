@@ -210,7 +210,9 @@ class PermissionsTests(RestLiveTestCase):
         req_auth = await self.subscribe_to_list(self.auth_client)
         new_todo = await self.make_todo()
 
-        await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req, communicator=self.client)
+        await self.assertReceivedBroadcastForTodo(
+            new_todo, CREATED, req, communicator=self.client
+        )
         await self.assertReceivedBroadcastForTodo(
             new_todo,
             CREATED,
@@ -250,6 +252,10 @@ class ViewKwargTests(RestLiveTestCase):
     @async_test
     async def test_permission_with_kwargs_succeeds(self):
         await self.subscribe_to_list(kwargs={"password": "opensesame"})
+
+    @async_test
+    async def test_permission_with_params_succeeds(self):
+        await self.subscribe_to_list(params={"password": "opensesame-param"})
 
     @async_test
     async def test_serializer_with_kwargs(self):
@@ -325,7 +331,6 @@ class QuerysetFetchTest(RestLiveTestCase):
 
 
 class PrivateRouterTests(RestLiveTestCase):
-
     async def asyncSetUp(self):
         self.list = await db(List.objects.create)(name="test list")
         self.router = RealtimeRouter(public=False)
@@ -356,9 +361,7 @@ class PrivateRouterTests(RestLiveTestCase):
         user = await db(User.objects.create_user)("test")
         headers = await get_headers_for_user(user)
         self.client = APICommunicator(
-            AuthMiddlewareStack(self.router.as_consumer()),
-            "/ws/subscribe/",
-            headers
+            AuthMiddlewareStack(self.router.as_consumer()), "/ws/subscribe/", headers
         )
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
@@ -387,11 +390,15 @@ class MultiRouterTests(RestLiveTestCase):
     @async_test
     async def test_broadcasts_one_per_router(self):
         self.client1 = APICommunicator(
-            AuthMiddlewareStack(self.router1.as_consumer()), "/ws/subscribe/", self.headers
+            AuthMiddlewareStack(self.router1.as_consumer()),
+            "/ws/subscribe/",
+            self.headers,
         )
         self.assertTrue(await self.client1.connect())
         self.client2 = APICommunicator(
-            AuthMiddlewareStack(self.router2.as_consumer()), "/ws/subscribe/auth/", self.headers
+            AuthMiddlewareStack(self.router2.as_consumer()),
+            "/ws/subscribe/auth/",
+            self.headers,
         )
         self.assertTrue(await self.client2.connect())
 
@@ -407,7 +414,9 @@ class MultiRouterTests(RestLiveTestCase):
     @async_test
     async def test_broadcasts_only_to_one(self):
         self.client1 = APICommunicator(
-            AuthMiddlewareStack(self.router1.as_consumer()), "/ws/subscribe/", self.headers
+            AuthMiddlewareStack(self.router1.as_consumer()),
+            "/ws/subscribe/",
+            self.headers,
         )
         self.assertTrue(await self.client1.connect())
         self.client2 = APICommunicator(
@@ -502,7 +511,9 @@ class APIErrorTests(RestLiveTestCase):
 
     @async_test
     async def test_no_value_in_request(self):
-        await self.client.send_json_to({"type": "subscribe", "id": 1337, "model": "test_app.Todo"})
+        await self.client.send_json_to(
+            {"type": "subscribe", "id": 1337, "model": "test_app.Todo"}
+        )
         await self.assertReceiveError(1337, 400)
 
     @async_test

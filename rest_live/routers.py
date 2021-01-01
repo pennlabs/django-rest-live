@@ -27,7 +27,9 @@ class RealtimeRouter:
             )
         label = view.register_signal_handler(self.uid)
         if label in self.registry:
-            raise RuntimeWarning("You should not register two realitime views for the same model.")
+            raise RuntimeWarning(
+                "You should not register two realitime views for the same model."
+            )
 
         self.registry[label] = view
 

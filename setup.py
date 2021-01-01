@@ -18,7 +18,9 @@ class VerifyVersionCommand(install):
         tag = os.getenv("CIRCLE_TAG")
 
         if tag != VERSION:
-            info = "Git tag: {0} does not match the version of this app: {1}".format(tag, VERSION)
+            info = "Git tag: {0} does not match the version of this app: {1}".format(
+                tag, VERSION
+            )
             sys.exit(info)
 
 
@@ -28,7 +30,9 @@ setup(
     packages=find_packages(exclude=["tests", "test_app"]),
     url="https://github.com/pennlabs/django-rest-live",
     project_urls={
-        "Changelog": ("https://github.com/pennlabs/django-rest-live/blob/master/CHANGELOG.md")
+        "Changelog": (
+            "https://github.com/pennlabs/django-rest-live/blob/master/CHANGELOG.md"
+        )
     },
     license="MIT",
     author="Penn Labs",
