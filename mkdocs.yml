@@ -1,4 +1,4 @@
-site_name: My Docs
+site_name: Django REST Live
 theme:
   name: readthedocs
   include_homepage_in_sidebar: False

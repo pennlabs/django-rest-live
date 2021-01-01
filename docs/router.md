@@ -3,7 +3,7 @@
 The `RealtimeRouter` object builds up mappings between DRF views and Django models, registers
 signal handlers to get save and delete signals, and generates a channels `Consumer` subclass
 to handle incoming websocket requests. Multiple `RealtimeRouter`s can be instantiated in the same application
-to be handled by two separate consumers.
+to be handled by separate consumers.
 
 ## API
 

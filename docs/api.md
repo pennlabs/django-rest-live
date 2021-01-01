@@ -1,5 +1,9 @@
 # Websocket API
 ## General format
+Messages are sent from over the websocket connection
+as JSON strings. The easiest way to generate these is to construct an object
+in JavaScript and pass it to `JSON.stringify`. Incoming messages can be parsed with `JSON.parse`.
+
 All messages have a `type` property which determines all other properties
 accessible on the message
 and a `id` which specifies which request it pertains to. It's
@@ -18,9 +22,8 @@ Errors have the following form:
 An error with code `400` will be sent if an unknown message `type` is sent.
 
 ## Subscription Request
-Subscription requests are sent from the client over the websocket connection with the server
-as JSON strings. The easiest way to generate these is to construct an object
-in JavaScript and pass it to `JSON.stringify`. It has the following properties:
+Subscription requests are sent from the client over the websocket connection with the server.
+It has the following properties:
 
 - `type` (_string_) – Designates a message as a subscription request; should always be `"subscribe"`.
 - `id` (_number_) – Identifier for this subscription request. Should be unique
