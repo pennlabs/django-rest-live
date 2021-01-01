@@ -8,6 +8,8 @@
 `django-rest-live` adds real-time subscriptions over websockets to [Django REST Framework](https://github.com/encode/django-rest-framework)
 views by leveraging websocket support provided by [Django Channels](https://github.com/django/channels).
 
+Read the documentation [here](https://django-rest-live.readthedocs.io)!
+
 `django-rest-live` took initial inspiration from [this article by Kit La Touche](https://www.oddbird.net/2018/12/12/channels-and-drf/).
 The goal of this project is to be as close as possible to a drop-in realtime solution for projects already
 using Django REST Framework. 
