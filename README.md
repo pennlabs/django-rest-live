@@ -1,5 +1,6 @@
 # Django REST Live
 
+[![Documentation](https://readthedocs.org/projects/django-rest-live/badge/?version=latest)](https://django-rest-live.readthedocs.io/en/latest/?badge=latest)
 [![CircleCI](https://circleci.com/gh/pennlabs/django-rest-live.svg?style=shield)](https://circleci.com/gh/pennlabs/django-rest-live)
 [![Coverage Status](https://codecov.io/gh/pennlabs/django-rest-live/branch/master/graph/badge.svg)](https://codecov.io/gh/pennlabs/django-rest-live)
 [![PyPi Package](https://img.shields.io/pypi/v/django-rest-live.svg)](https://pypi.org/project/django-rest-live/)
