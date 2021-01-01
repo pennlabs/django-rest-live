@@ -1,0 +1,12 @@
+site_name: Django REST Live
+theme:
+  name: readthedocs
+  include_homepage_in_sidebar: False
+repo_name: https://github.com/pennlabs/django-rest-live
+nav:
+  - 'installation.md'
+  - 'usage.md'
+  - 'testing.md'
+  - 'router.md'
+  - 'api.md'
+  - 'mixin.md'

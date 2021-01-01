@@ -5,6 +5,8 @@ from django.contrib.auth import get_user_model
 from django.test import TransactionTestCase
 from djangorestframework_camel_case.util import camelize
 
+from rest_live import DELETED
+from rest_live.testing import APICommunicator
 from test_app.models import List, Todo
 from test_app.serializers import TodoSerializer
 
@@ -13,74 +15,111 @@ User = get_user_model()
 db = database_sync_to_async
 
 
-def async_test(fun):
-    async def wrapped(self, *args, **kwargs):
-        await self.asyncSetUp()
-        ret = await fun(self, *args, **kwargs)
-        await self.asyncTearDown()
-        return ret
-
-    return wrapped
-
-
 class RestLiveTestCase(TransactionTestCase):
-    communicator: WebsocketCommunicator
+    client: APICommunicator
     list: List
 
-    async def subscribe(self, model, property, value, communicator=None):
-        if communicator is None:
-            communicator = self.communicator
-        await communicator.send_json_to(
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.counter = 0
+
+    async def subscribe(
+        self, model, action, value=None, client=None, kwargs=None, params=None
+    ):
+        self.counter += 1
+        request_id = self.counter
+
+        if client is None:
+            client = self.client
+
+        payload = {
+            "type": "subscribe",
+            "id": request_id,
+            "model": model,
+            "action": action,
+        }
+        if value is not None:
+            payload["lookup_by"] = value
+
+        if kwargs is not None:
+            payload["view_kwargs"] = kwargs
+        if params is not None:
+            payload["query_params"] = params
+
+        await client.send_json_to(payload)
+        return request_id
+
+    async def unsubscribe(self, request_id, client=None):
+        if client is None:
+            client = self.client
+        await client.send_json_to(
             {
-                "model": model,
-                "property": property,
-                "value": value,
+                "type": "unsubscribe",
+                "id": request_id,
             }
         )
-        self.assertTrue(await communicator.receive_nothing())
+        self.assertTrue(await client.receive_nothing())
 
-    async def unsubscribe(self, model, property, value, communicator=None):
-        if communicator is None:
-            communicator = self.communicator
-        await communicator.send_json_to(
-            {
-                "unsubscribe": True,
-                "model": model,
-                "property": property,
-                "value": value,
-            }
-        )
-        self.assertTrue(await communicator.receive_nothing())
-
-    async def assertResponseEquals(self, expected, communicator=None):
-        if communicator is None:
-            communicator = self.communicator
-        response = await communicator.receive_json_from()
+    async def assertResponseEquals(self, expected, client=None):
+        if client is None:
+            client = self.client
+        response = await client.receive_json_from()
         self.assertDictEqual(response, expected)
 
     def make_todo_sub_response(
-        self, todo, action, group_by_field="pk", serializer=TodoSerializer
+        self, todo, action, request_id, serializer=TodoSerializer
     ):
-        return {
+        response = {
+            "type": "broadcast",
+            "id": request_id,
             "model": "test_app.Todo",
-            "instance": camelize(serializer(todo).data),
             "action": action,
-            "group_key_value": getattr(todo, group_by_field),
+            "instance": camelize(serializer(todo).data),
         }
+        if action == "DELETED":
+            response["instance"] = {"pk": todo.pk}
 
-    async def subscribe_to_list(self, communicator=None):
-        await self.subscribe("test_app.Todo", "list_id", self.list.pk, communicator)
+        return response
 
-    async def unsubscribe_from_list(self, communicator=None):
-        await self.unsubscribe("test_app.Todo", "list_id", self.list.pk, communicator)
+    async def subscribe_to_todo(self, client=None, error=None, kwargs=None):
+        if kwargs is None:
+            kwargs = dict()
+        if client is None:
+            client = self.client
 
-    async def make_todo(self):
-        return await db(Todo.objects.create)(list=self.list, text="test")
+        request_id = await self.subscribe(
+            "test_app.Todo", "retrieve", self.todo.pk, client, kwargs
+        )
+        if error is None:
+            self.assertTrue(await client.receive_nothing())
+        else:
+            msg = await client.receive_json_from()
+            self.assertTrue(error, msg["code"])
+        return request_id
 
-    async def assertReceivedUpdateForTodo(
-        self, todo, action, communicator=None, serializer=TodoSerializer
+    async def subscribe_to_list(
+        self, client=None, error=None, kwargs=None, params=None
+    ):
+        if client is None:
+            client = self.client
+
+        request_id = await self.subscribe(
+            "test_app.Todo", "list", None, client, kwargs, params
+        )
+        if error is None:
+            self.assertTrue(await client.receive_nothing())
+        else:
+            msg = await client.receive_json_from()
+            self.assertTrue(error, msg["code"])
+        return request_id
+
+    async def make_todo(self, text="test"):
+        return await db(Todo.objects.create)(list=self.list, text=text)
+
+    async def assertReceivedBroadcastForTodo(
+        self, todo, action, request_id, communicator=None, serializer=TodoSerializer
     ):
         await self.assertResponseEquals(
-            self.make_todo_sub_response(todo, action, "list_id", serializer),
+            self.make_todo_sub_response(todo, action, request_id, serializer),
             communicator,
         )

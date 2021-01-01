@@ -1,18 +1,12 @@
-from typing import Callable, Dict, Optional, Tuple, Type
-
-from django.conf import settings
-from django.db.models import Model
-from rest_framework import serializers
-
-
 default_app_config = "rest_live.apps.RestLiveConfig"
 
-DEFAULT_GROUP_KEY = "pk"
+DEFAULT_GROUP_BY_FIELD = "pk"
 
-User = settings.AUTH_USER_MODEL
 
-PermissionLambda = Callable[[User, Model], bool]
-SerializerClass = Type[serializers.Serializer]
-ListenerEntry = Dict[str, Dict[str, Tuple[SerializerClass, Optional[PermissionLambda]]]]
+def get_group_name(model_label) -> str:
+    return f"RESOURCE-{model_label}"
 
-__model_to_listeners: Dict[str, ListenerEntry] = dict()
+
+CREATED = "CREATED"
+UPDATED = "UPDATED"
+DELETED = "DELETED"

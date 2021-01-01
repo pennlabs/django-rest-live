@@ -1,16 +1,11 @@
-# Django REST Live
-
-[![Documentation](https://readthedocs.org/projects/django-rest-live/badge/?version=latest)](https://django-rest-live.readthedocs.io/en/latest/?badge=latest)
-[![CircleCI](https://circleci.com/gh/pennlabs/django-rest-live.svg?style=shield)](https://circleci.com/gh/pennlabs/django-rest-live)
-[![Coverage Status](https://codecov.io/gh/pennlabs/django-rest-live/branch/master/graph/badge.svg)](https://codecov.io/gh/pennlabs/django-rest-live)
-[![PyPi Package](https://img.shields.io/pypi/v/django-rest-live.svg)](https://pypi.org/project/django-rest-live/)
+# Django REST Live documentation
 
 `django-rest-live` adds real-time subscriptions over websockets to [Django REST Framework](https://github.com/encode/django-rest-framework)
 views by leveraging websocket support provided by [Django Channels](https://github.com/django/channels).
 
-Read the documentation [here](https://django-rest-live.readthedocs.io)!
-
+## Inspiration and Goals
 `django-rest-live` took initial inspiration from [this article by Kit La Touche](https://www.oddbird.net/2018/12/12/channels-and-drf/).
+
 The goal of this project is to be as close as possible to a drop-in realtime solution for projects already
 using Django REST Framework. 
 
