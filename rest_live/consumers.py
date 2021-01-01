@@ -202,19 +202,19 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
         viewset_class = self.registry[model_label]
 
         for request_id in self.subscriptions[channel_name]:
-            viewset = viewset_class.from_scope(
+            view = viewset_class.from_scope(
                 self.actions[request_id],
                 self.scope,
                 self.kwargs[request_id],
                 self.params[request_id],
             )
 
-            model = viewset.get_model_class()
-            renderer = viewset.perform_content_negotiation(viewset.request)[0]
+            model = view.get_model_class()
+            renderer = view.perform_content_negotiation(view.request)[0]
 
             is_existing_instance = instance_pk in self.visible_instance_pks[request_id]
             try:
-                instance = viewset.get_queryset().get(pk=instance_pk)
+                instance = view.get_queryset().get(pk=instance_pk)
                 action = UPDATED if is_existing_instance else CREATED
             except model.DoesNotExist:
                 if not is_existing_instance:
@@ -231,16 +231,16 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 # If an object's deleted from a user's queryset, there's no guarantee that the user still
                 # has permission to see the contents of the instance, so the instance just returns the lookup_field.
                 instance_data = {
-                    viewset.lookup_field: getattr(instance, viewset.lookup_field)
+                    view.lookup_field: getattr(instance, view.lookup_field)
                 }
             else:
-                serializer_class = viewset.get_serializer_class()
+                serializer_class = view.get_serializer_class()
                 instance_data = serializer_class(
                     instance,
                     context={
-                        "request": viewset.request,
+                        "request": view.request,
                         "format": "json",  # TODO: change this to be general based on content negotiation
-                        "view": viewset,
+                        "view": view,
                     },
                 ).data
 

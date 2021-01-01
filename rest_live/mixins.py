@@ -6,7 +6,7 @@ from django.db.models import Model
 from django.db.models.signals import post_save
 from django.utils.decorators import classonlymethod
 from django.utils.http import urlencode
-
+from rest_framework.generics import GenericAPIView
 from rest_live.signals import save_handler
 
 
