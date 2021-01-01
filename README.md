@@ -275,7 +275,7 @@ keyword arguments, and you most likely need to provide those arguments to your V
 
 If you use `request.query_params` in your view at all, potentially from
 [filters](https://www.django-rest-framework.org/api-guide/filtering/#filtering-against-query-parameters) on your queryset,
-You can also pass in query parameters to your subscription with the `query_params` key:
+you can also pass in query parameters to your subscription with the `query_params` key:
 ```json
 {
   "type": "subscribe",
