@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 from setuptools.command.install import install
 
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 DESCRIPTION = open("README.md", encoding="utf-8").read()
 
 
