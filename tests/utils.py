@@ -77,7 +77,7 @@ class RestLiveTestCase(TransactionTestCase):
             "instance": camelize(serializer(todo).data),
         }
         if action == "DELETED":
-            response["instance"] = {"pk": todo.pk}
+            response["instance"] = {"pk": todo.pk, "id": todo.id}
 
         return response
 

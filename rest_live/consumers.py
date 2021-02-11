@@ -16,6 +16,7 @@ class Subscription:
     Data representing a subscription request from the client. See documentation for explanation
     of what each field does.
     """
+
     request_id: int
     action: str
     view_kwargs: Dict[str, Union[int, str]]
@@ -151,18 +152,17 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             group_name = get_group_name(model_label)
             print(f"[REST-LIVE] got subscription to {group_name}")
 
-            self.subscriptions.setdefault(group_name, []).append(Subscription(
-                request_id,
-                action=view_action,
-                view_kwargs=view_kwargs,
-                query_params=query_params,
-                pks_in_queryset=set(
-                    [
-                        inst["pk"]
-                        for inst in view.get_queryset().all().values("pk")
-                    ]
+            self.subscriptions.setdefault(group_name, []).append(
+                Subscription(
+                    request_id,
+                    action=view_action,
+                    view_kwargs=view_kwargs,
+                    query_params=query_params,
+                    pks_in_queryset=set(
+                        [inst["pk"] for inst in view.get_queryset().all().values("pk")]
+                    ),
                 )
-            ))
+            )
 
             # Add subscribe to updates from channel layer: this is the "actual" subscription action.
             async_to_sync(self.channel_layer.group_add)(group_name, self.channel_name)
@@ -173,7 +173,9 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             try:
                 # List comprehension is empty if the provided request_id doesn't show up for this consumer
                 group_name = [
-                    k for k, v in self.subscriptions.items() if request_id in [s.request_id for s in v]
+                    k
+                    for k, v in self.subscriptions.items()
+                    if request_id in [s.request_id for s in v]
                 ][0]
             except IndexError:
                 self.send_error(
@@ -183,7 +185,11 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 )
                 return
 
-            self.subscriptions[group_name] = [sub for sub in self.subscriptions[group_name] if sub.request_id != request_id]
+            self.subscriptions[group_name] = [
+                sub
+                for sub in self.subscriptions[group_name]
+                if sub.request_id != request_id
+            ]
             self.groups.remove(
                 group_name
             )  # Removes the first occurance of this group name.
@@ -212,7 +218,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 subscription.action,
                 self.scope,
                 subscription.view_kwargs,
-                subscription.query_params
+                subscription.query_params,
             )
 
             model = view.get_model_class()
@@ -233,22 +239,29 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 instance = model.objects.get(pk=instance_pk)
                 action = DELETED
 
+            serializer_class = view.get_serializer_class()
+            instance_data = serializer_class(
+                instance,
+                context={
+                    "request": view.request,
+                    "format": "json",  # TODO: change this to be general based on content negotiation
+                    "view": view,
+                },
+            ).data
+
             if action == DELETED:
                 # If an object's deleted from a user's queryset, there's no guarantee that the user still
                 # has permission to see the contents of the instance, so the instance just returns the lookup_field.
-                instance_data = {
-                    view.lookup_field: getattr(instance, view.lookup_field)
-                }
-            else:
-                serializer_class = view.get_serializer_class()
-                instance_data = serializer_class(
-                    instance,
-                    context={
-                        "request": view.request,
-                        "format": "json",  # TODO: change this to be general based on content negotiation
-                        "view": view,
-                    },
-                ).data
+                # TODO: clients might expect `id` as well as `pk`, since django defaults to `id`.
+                if view.lookup_field == "pk" and "id" in instance_data:
+                    instance_data = {
+                        view.lookup_field: getattr(instance, view.lookup_field),
+                        "id": instance_data["id"],
+                    }
+                else:
+                    instance_data = {
+                        view.lookup_field: getattr(instance, view.lookup_field)
+                    }
 
             # We don't need to check for membership since it's implicit given broadcast_data isn't None.
             if action == DELETED:
