@@ -1,4 +1,5 @@
 from typing import Any, Dict, Type, List, Union, Set
+from dataclasses import dataclass
 
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import JsonWebsocketConsumer
@@ -7,6 +8,24 @@ from rest_live import get_group_name, DELETED, UPDATED, CREATED
 from rest_live.mixins import RealtimeMixin
 
 KwargType = Dict[str, Union[int, str]]
+
+
+@dataclass
+class Subscription:
+    """
+    Data representing a subscription request from the client. See documentation for explanation
+    of what each field does.
+    """
+    request_id: int
+    action: str
+    view_kwargs: Dict[str, Union[int, str]]
+    query_params: Dict[str, Union[int, str]]
+
+    # To determine if an instance should be considered "created" or "deleted", we need
+    # to keep track of all the instances that a given subscription currently considers
+    # visible. This set keeps track of that. This will probably be the main resource bottleneck
+    # in django-rest-live
+    pks_in_queryset: Set[int]
 
 
 class SubscriptionConsumer(JsonWebsocketConsumer):
@@ -28,18 +47,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
         ):
             self.close(code=4003)
 
-        self.subscriptions: Dict[
-            str, List[int]
-        ] = dict()  # Maps group name to list of request IDs.
-        self.actions: Dict[
-            int, str
-        ] = dict()  # Request ID to action (list or retrieve).
-        self.kwargs: Dict[int, KwargType] = dict()  # Request ID to view kwargs.
-        self.params: Dict[int, KwargType] = dict()  # Request ID to query params.
-        self.visible_instance_pks: Dict[
-            int, Set[int]
-        ] = dict()  # set of visible instances for every request.
-
+        self.subscriptions: Dict[str, List[Subscription]] = dict()
         self.accept()
 
     def send_error(self, request_id, code, message):
@@ -143,16 +151,18 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             group_name = get_group_name(model_label)
             print(f"[REST-LIVE] got subscription to {group_name}")
 
-            self.subscriptions.setdefault(group_name, []).append(request_id)
-            self.kwargs[request_id] = view_kwargs
-            self.params[request_id] = query_params
-            self.actions[request_id] = view_action
-            self.visible_instance_pks[request_id] = set(
-                [
-                    instance1["pk"]
-                    for instance1 in view.get_queryset().all().values("pk")
-                ]
-            )
+            self.subscriptions.setdefault(group_name, []).append(Subscription(
+                request_id,
+                action=view_action,
+                view_kwargs=view_kwargs,
+                query_params=query_params,
+                pks_in_queryset=set(
+                    [
+                        inst["pk"]
+                        for inst in view.get_queryset().all().values("pk")
+                    ]
+                )
+            ))
 
             # Add subscribe to updates from channel layer: this is the "actual" subscription action.
             async_to_sync(self.channel_layer.group_add)(group_name, self.channel_name)
@@ -163,7 +173,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             try:
                 # List comprehension is empty if the provided request_id doesn't show up for this consumer
                 group_name = [
-                    k for k, v in self.subscriptions.items() if request_id in v
+                    k for k, v in self.subscriptions.items() if request_id in [s.request_id for s in v]
                 ][0]
             except IndexError:
                 self.send_error(
@@ -173,11 +183,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                 )
                 return
 
-            del self.actions[request_id]
-            del self.kwargs[request_id]
-            del self.visible_instance_pks[request_id]
-
-            self.subscriptions[group_name].remove(request_id)
+            self.subscriptions[group_name] = [sub for sub in self.subscriptions[group_name] if sub.request_id != request_id]
             self.groups.remove(
                 group_name
             )  # Removes the first occurance of this group name.
@@ -195,24 +201,24 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             self.send_error(request_id, 400, f"unknown message type `{message_type}`.")
 
     def model_saved(self, event):
-        channel_name = event["channel_name"]
-        instance_pk = event["instance_pk"]
-        model_label = event["model"]
+        channel_name: str = event["channel_name"]
+        instance_pk: int = event["instance_pk"]
+        model_label: str = event["model"]
 
         viewset_class = self.registry[model_label]
 
-        for request_id in self.subscriptions[channel_name]:
+        for subscription in self.subscriptions[channel_name]:
             view = viewset_class.from_scope(
-                self.actions[request_id],
+                subscription.action,
                 self.scope,
-                self.kwargs[request_id],
-                self.params[request_id],
+                subscription.view_kwargs,
+                subscription.query_params
             )
 
             model = view.get_model_class()
             renderer = view.perform_content_negotiation(view.request)[0]
 
-            is_existing_instance = instance_pk in self.visible_instance_pks[request_id]
+            is_existing_instance = instance_pk in subscription.pks_in_queryset
             try:
                 instance = view.get_queryset().get(pk=instance_pk)
                 action = UPDATED if is_existing_instance else CREATED
@@ -246,9 +252,9 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
             # We don't need to check for membership since it's implicit given broadcast_data isn't None.
             if action == DELETED:
-                self.visible_instance_pks[request_id].remove(instance_pk)
+                subscription.pks_in_queryset.remove(instance_pk)
             else:
-                self.visible_instance_pks[request_id].add(instance_pk)
+                subscription.pks_in_queryset.add(instance_pk)
             self.send_broadcast(
-                request_id, model_label, action, instance_data, renderer
+                subscription.request_id, model_label, action, instance_data, renderer
             )
