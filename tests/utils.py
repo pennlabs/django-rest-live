@@ -81,14 +81,16 @@ class RestLiveTestCase(TransactionTestCase):
 
         return response
 
-    async def subscribe_to_todo(self, client=None, error=None, kwargs=None):
+    async def subscribe_to_todo(
+        self, client=None, error=None, kwargs=None, params=None
+    ):
         if kwargs is None:
             kwargs = dict()
         if client is None:
             client = self.client
 
         request_id = await self.subscribe(
-            "test_app.Todo", "retrieve", self.todo.pk, client, kwargs
+            "test_app.Todo", "retrieve", self.todo.pk, client, kwargs, params
         )
         if error is None:
             self.assertTrue(await client.receive_nothing())
