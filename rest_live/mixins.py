@@ -74,7 +74,6 @@ class RealtimeMixin(object):
         self.action_map = dict()
         self.args = []
         self.kwargs = view_kwargs
-        self.action = viewset_action  # TODO: custom subscription actions?
 
         base_request = AsgiRequest(
             {**scope, "method": "GET", "query_string": urlencode(query_params)},
@@ -85,4 +84,5 @@ class RealtimeMixin(object):
         base_request.session = scope.get("session", None)
 
         self.request = self.initialize_request(base_request)
+        self.action = viewset_action  # TODO: custom subscription actions?
         return self

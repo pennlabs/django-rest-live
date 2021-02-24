@@ -1,8 +1,7 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, filters
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import (
     IsAuthenticated,
-    DjangoModelPermissions,
     BasePermission,
 )
 
@@ -19,6 +18,8 @@ from test_app.serializers import (
 class TodoViewSet(GenericAPIView, RealtimeMixin):
     queryset = Todo.objects.all()
     serializer_class = TodoSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["text"]
 
 
 class ConditionalTodoViewSet(viewsets.ModelViewSet, RealtimeMixin):
