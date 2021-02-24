@@ -26,7 +26,7 @@ class Subscription:
     # to keep track of all the instances that a given subscription currently considers
     # visible. This set keeps track of that. This will probably be the main resource bottleneck
     # in django-rest-live
-    pks_in_queryset: Set[int]
+    pks_in_queryset: Set[str]
 
 
 class SubscriptionConsumer(JsonWebsocketConsumer):
@@ -159,7 +159,9 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                     view_kwargs=view_kwargs,
                     query_params=query_params,
                     pks_in_queryset=set(
-                        [inst["pk"] for inst in view.get_queryset().all().values("pk")]
+                        str(pk) for pk in view.filter_queryset(
+                            view.get_queryset()
+                        ).values_list("pk", flat=True)
                     ),
                 )
             )
@@ -208,7 +210,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
     def model_saved(self, event):
         channel_name: str = event["channel_name"]
-        instance_pk: int = event["instance_pk"]
+        instance_pk: str = event["instance_pk"]
         model_label: str = event["model"]
 
         viewset_class = self.registry[model_label]

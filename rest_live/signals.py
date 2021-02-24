@@ -13,7 +13,7 @@ def save_handler(sender, instance, *args, **kwargs):
         {
             "type": "model.saved",
             "model": model_label,
-            "instance_pk": instance.pk,
+            "instance_pk": str(instance.pk),
             "channel_name": group_name,
         },
     )

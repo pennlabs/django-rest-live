@@ -11,7 +11,7 @@ from rest_live import CREATED, UPDATED, DELETED
 from rest_live.routers import RealtimeRouter
 from rest_live.testing import async_test, get_headers_for_user
 
-from test_app.models import List, Todo
+from test_app.models import List, Todo, UUIDTodo
 from test_app.serializers import AuthedTodoSerializer, TodoSerializer
 from test_app.views import (
     TodoViewSet,
@@ -19,6 +19,7 @@ from test_app.views import (
     ConditionalTodoViewSet,
     KwargViewSet,
     FilteredViewSet,
+    UUIDTodoViewSet,
 )
 from tests.utils import RestLiveTestCase
 
@@ -522,3 +523,99 @@ class APIErrorTests(RestLiveTestCase):
             {"type": "subscribe", "id": 1337, "model": "blah.Model", "value": 1}
         )
         await self.assertReceiveError(1337, 404)
+
+
+class UUIDTodoTests(RestLiveTestCase):
+    """
+    Tests compatibility with models that use non-integer IDs
+    """
+
+    async def asyncSetUp(self):
+        router = RealtimeRouter()
+        router.register(UUIDTodoViewSet)
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+
+    async def asyncTearDown(self):
+        await self.client.disconnect()
+
+    @async_test
+    async def test_list(self):
+        label = UUIDTodo._meta.label
+        request_id = await self.subscribe(label, "list")
+        self.assertTrue(await self.client.receive_nothing())
+
+        todo = await db(UUIDTodo.objects.create)()
+        response = await self.client.receive_json_from()
+        self.assertDictEqual(
+            {
+                "type": "broadcast",
+                "id": request_id,
+                "model": label,
+                "action": CREATED,
+                "instance": {"id": str(todo.id)},
+            },
+            response,
+        )
+
+        await db(todo.save)()
+        response = await self.client.receive_json_from()
+        self.assertDictEqual(
+            {
+                "type": "broadcast",
+                "id": request_id,
+                "model": label,
+                "action": UPDATED,
+                "instance": {"id": str(todo.id)},
+            },
+            response,
+        )
+
+        todo.included = False
+        await db(todo.save)()
+        response = await self.client.receive_json_from()
+        self.assertDictEqual(
+            {
+                "type": "broadcast",
+                "id": request_id,
+                "model": label,
+                "action": DELETED,
+                "instance": {"id": str(todo.id), "pk": str(todo.id)},
+            },
+            response,
+        )
+
+    @async_test
+    async def test_retrieve(self):
+        label = UUIDTodo._meta.label
+        todo = await db(UUIDTodo.objects.create)()
+        request_id = await self.subscribe(label, "retrieve", str(todo.id))
+        self.assertTrue(await self.client.receive_nothing())
+
+        await db(todo.save)()
+        response = await self.client.receive_json_from()
+        self.assertDictEqual(
+            {
+                "type": "broadcast",
+                "id": request_id,
+                "model": label,
+                "action": UPDATED,
+                "instance": {"id": str(todo.id)},
+            },
+            response,
+        )
+
+        todo.included = False
+        await db(todo.save)()
+        response = await self.client.receive_json_from()
+        self.assertDictEqual(
+            {
+                "type": "broadcast",
+                "id": request_id,
+                "model": label,
+                "action": DELETED,
+                "instance": {"id": str(todo.id), "pk": str(todo.id)},
+            },
+            response,
+        )
