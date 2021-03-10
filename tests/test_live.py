@@ -46,11 +46,18 @@ class BasicResourceTests(RestLiveTestCase):
 
     @async_test
     async def test_single_update(self):
-        self.todo = await db(Todo.objects.create)(list=self.list, text="test")
+        self.todo = await self.make_todo("test")
+        other_todo = await self.make_todo("another")
         req = await self.subscribe_to_todo()
+
         self.todo.text = "MODIFIED"
         await db(self.todo.save)()
         await self.assertReceivedBroadcastForTodo(self.todo, UPDATED, req)
+
+        # Modifying other instances shouldn't trigger a message
+        other_todo.text = "MODIFIED TOO"
+        await db(other_todo.save)()
+        assert await self.client.receive_nothing()
 
     @async_test
     async def test_list_unsubscribe(self):
@@ -311,18 +318,6 @@ class QueryParamsTests(RestLiveTestCase):
         # Make sure new ToDos that don't match the query are never broadcasted
         await self.make_todo("no match")
         self.assertTrue(await self.client.receive_nothing())
-
-    @async_test
-    async def test_retrieve(self):
-        self.todo = await self.make_todo("hello world")
-        request_id = await self.subscribe_to_todo(params={"search": "hello"})
-
-        await db(self.todo.save)()
-        await self.assertReceivedBroadcastForTodo(self.todo, UPDATED, request_id)
-
-        self.todo.text = "goodbye world"  # No longer matches the query
-        await db(self.todo.save)()
-        await self.assertReceivedBroadcastForTodo(self.todo, DELETED, request_id)
 
 
 class QuerysetFetchTest(RestLiveTestCase):
