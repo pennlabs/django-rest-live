@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import JsonWebsocketConsumer
+from django.http import Http404
+from rest_framework.exceptions import NotAuthenticated, PermissionDenied
 
 from rest_live import get_group_name, DELETED, UPDATED, CREATED
 from rest_live.mixins import RealtimeMixin
@@ -113,7 +115,6 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             view = self.registry[model_label].from_scope(
                 view_action, self.scope, view_kwargs, query_params
             )
-            model = view.get_model_class()
 
             # Check to make sure client has permissions to make this subscription.
             has_permission = True
@@ -122,23 +123,20 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                     view.request, view
                 )
 
-            # Retrieve actions must check has_object_permission as well.
+            # Retrieve actions use get_object() to check object permissions as well.
             if view.action == "retrieve":
+                view.kwargs.setdefault(view.lookup_field, lookup_value)
                 try:
-                    instance = view.get_queryset().get(
-                        **{view.lookup_field: lookup_value}
+                    view.get_object()
+                except Http404:
+                    self.send_error(
+                        request_id,
+                        404,
+                        "Instance not found. Make sure 'lookup_by' is set to a valid ID",
                     )
-                except model.DoesNotExist:
-                    self.send_error(request_id, 404, "Instance not found.")
                     return
-
-                for permission in view.get_permissions():
-                    has_permission = (
-                        has_permission
-                        and permission.has_object_permission(
-                            view.request, view, instance
-                        )
-                    )
+                except (NotAuthenticated, PermissionDenied):
+                    has_permission = False
 
             if not has_permission:
                 self.send_error(
@@ -194,10 +192,10 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             ]
             self.groups.remove(
                 group_name
-            )  # Removes the first occurance of this group name.
+            )  # Removes the first occurrence of this group name.
             if (
                 group_name not in self.groups
-            ):  # If there are no more occurances, unsubscribe to the channel layer.
+            ):  # If there are no more occurrences, unsubscribe to the channel layer.
                 async_to_sync(self.channel_layer.group_discard)(
                     group_name, self.channel_name
                 )
@@ -228,7 +226,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
             is_existing_instance = instance_pk in subscription.pks_in_queryset
             try:
-                instance = view.get_queryset().get(pk=instance_pk)
+                instance = view.filter_queryset(view.get_queryset()).get(pk=instance_pk)
                 action = UPDATED if is_existing_instance else CREATED
             except model.DoesNotExist:
                 if not is_existing_instance:

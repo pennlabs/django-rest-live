@@ -277,6 +277,54 @@ class ViewKwargTests(RestLiveTestCase):
         )
 
 
+class QueryParamsTests(RestLiveTestCase):
+    """
+    Tests to ensure that query (GET) params passed along with subscriptions are
+    handled properly. This ensures compatibility with DRF filter backends.
+    """
+
+    async def asyncSetUp(self):
+        router = RealtimeRouter()
+        router.register(TodoViewSet)
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+        self.list = await db(List.objects.create)(name="test list")
+
+    async def asyncTearDown(self):
+        await self.client.disconnect()
+
+    @async_test
+    async def test_list(self):
+        request_id = await self.subscribe_to_list(params={"search": "hello"})
+
+        todo = await self.make_todo("hello world")
+        await self.assertReceivedBroadcastForTodo(todo, CREATED, request_id)
+
+        await db(todo.save)()
+        await self.assertReceivedBroadcastForTodo(todo, UPDATED, request_id)
+
+        todo.text = "goodbye world"  # No longer matches search query
+        await db(todo.save)()
+        await self.assertReceivedBroadcastForTodo(todo, DELETED, request_id)
+
+        # Make sure new ToDos that don't match the query are never broadcasted
+        await self.make_todo("no match")
+        self.assertTrue(await self.client.receive_nothing())
+
+    @async_test
+    async def test_retrieve(self):
+        self.todo = await self.make_todo("hello world")
+        request_id = await self.subscribe_to_todo(params={"search": "hello"})
+
+        await db(self.todo.save)()
+        await self.assertReceivedBroadcastForTodo(self.todo, UPDATED, request_id)
+
+        self.todo.text = "goodbye world"  # No longer matches the query
+        await db(self.todo.save)()
+        await self.assertReceivedBroadcastForTodo(self.todo, DELETED, request_id)
+
+
 class QuerysetFetchTest(RestLiveTestCase):
     """
     Tests to make sure that subscriptions properly respect the queryset on the view.
