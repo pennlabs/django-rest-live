@@ -115,8 +115,8 @@ class RestLiveTestCase(TransactionTestCase):
             self.assertTrue(error, msg["code"])
         return request_id
 
-    async def make_todo(self, text="test"):
-        return await db(Todo.objects.create)(list=self.list, text=text)
+    async def make_todo(self, text="test", **kwargs):
+        return await db(Todo.objects.create)(list=self.list, text=text, **kwargs)
 
     async def assertReceivedBroadcastForTodo(
         self, todo, action, request_id, communicator=None, serializer=TodoSerializer

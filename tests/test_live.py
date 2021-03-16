@@ -19,6 +19,7 @@ from test_app.views import (
     ConditionalTodoViewSet,
     KwargViewSet,
     FilteredViewSet,
+    Top5ViewSet
 )
 from tests.utils import RestLiveTestCase
 
@@ -376,6 +377,40 @@ class QuerysetFetchTest(RestLiveTestCase):
         new_todo.text = "special"
         await db(new_todo.save)()
         await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req)
+
+
+class Top5Test(RestLiveTestCase):
+    """
+    Tests to make sure that subscriptions properly respect the queryset slicing on the view.
+    """
+
+    async def asyncSetUp(self):
+        router = RealtimeRouter()
+        router.register(Top5ViewSet)
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+        self.list = await db(List.objects.create)(name="test list")
+
+    async def asyncTearDown(self):
+        await self.client.disconnect()
+
+    @async_test
+    async def test_top5(self):
+        for i in range(1, 10):
+            await self.make_todo(score=i)
+        req = await self.subscribe_to_list()
+
+        todo = await self.make_todo(score=1)  # Create a top-scoring todo
+        await self.assertReceivedBroadcastForTodo(todo, CREATED, req)
+
+        todo.score = 2  # Update staying in the top-5
+        await db(todo.save)()
+        await self.assertReceivedBroadcastForTodo(todo, UPDATED, req)
+
+        todo.score = 10  # Update leaving the top-5
+        await db(todo.save)()
+        await self.assertReceivedBroadcastForTodo(todo, DELETED, req)
 
 
 class PrivateRouterTests(RestLiveTestCase):
