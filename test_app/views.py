@@ -6,12 +6,13 @@ from rest_framework.permissions import (
 )
 
 from rest_live.mixins import RealtimeMixin
-from test_app.models import Todo
+from test_app.models import Todo, UUIDTodo
 
 from test_app.serializers import (
     TodoSerializer,
     AuthedTodoSerializer,
     KwargsTodoSerializer,
+    UUIDTodoSerializer,
 )
 
 
@@ -57,3 +58,8 @@ class KwargViewSet(GenericAPIView, RealtimeMixin):
 class FilteredViewSet(GenericAPIView, RealtimeMixin):
     queryset = Todo.objects.filter(text="special")
     serializer_class = TodoSerializer
+
+
+class UUIDTodoViewSet(GenericAPIView, RealtimeMixin):
+    queryset = UUIDTodo.objects.filter(included=True)
+    serializer_class = UUIDTodoSerializer

@@ -28,7 +28,7 @@ class Subscription:
     # to keep track of all the instances that a given subscription currently considers
     # visible. This set keeps track of that. This will probably be the main resource bottleneck
     # in django-rest-live
-    pks_in_queryset: Set[int]
+    pks_in_queryset: Set[str]
 
 
 class SubscriptionConsumer(JsonWebsocketConsumer):
@@ -41,6 +41,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
     """
 
     registry: Dict[str, Type[RealtimeMixin]] = dict()
+    subscriptions: List[Subscription]
     public = True
 
     def connect(self):
@@ -127,7 +128,8 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             if view.action == "retrieve":
                 view.kwargs.setdefault(view.lookup_field, lookup_value)
                 try:
-                    view.get_object()
+                    instance = view.get_object()
+                    pks_in_queryset = {str(instance.pk)}
                 except Http404:
                     self.send_error(
                         request_id,
@@ -137,6 +139,9 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                     return
                 except (NotAuthenticated, PermissionDenied):
                     has_permission = False
+            else:
+                qs = view.filter_queryset(view.get_queryset())
+                pks_in_queryset = {str(pk) for pk in qs.values_list("pk", flat=True)}
 
             if not has_permission:
                 self.send_error(
@@ -156,9 +161,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                     action=view_action,
                     view_kwargs=view_kwargs,
                     query_params=query_params,
-                    pks_in_queryset=set(
-                        [inst["pk"] for inst in view.get_queryset().all().values("pk")]
-                    ),
+                    pks_in_queryset=pks_in_queryset
                 )
             )
 
@@ -206,12 +209,18 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
     def model_saved(self, event):
         channel_name: str = event["channel_name"]
-        instance_pk: int = event["instance_pk"]
+        instance_pk: str = event["instance_pk"]
         model_label: str = event["model"]
 
         viewset_class = self.registry[model_label]
 
         for subscription in self.subscriptions[channel_name]:
+            if (
+                subscription.action == "retrieve"
+                and instance_pk not in subscription.pks_in_queryset
+            ):
+                continue
+
             view = viewset_class.from_scope(
                 subscription.action,
                 self.scope,

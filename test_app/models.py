@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.db import models
+from uuid import uuid4
 
 
 class List(models.Model):
@@ -11,6 +12,11 @@ class Todo(models.Model):
     done = models.BooleanField(default=False)
     list = models.ForeignKey("List", on_delete=models.CASCADE)
     another_field = models.BooleanField(default=True)
+
+
+class UUIDTodo(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid4)
+    included = models.BooleanField(default=True)
 
 
 admin.site.register(List)

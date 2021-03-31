@@ -1,7 +1,6 @@
 from rest_framework import serializers
-from rest_framework.permissions import BasePermission
 
-from test_app.models import Todo
+from test_app.models import Todo, UUIDTodo
 
 
 class TodoSerializer(serializers.ModelSerializer):
@@ -30,3 +29,9 @@ class AuthedTodoSerializer(serializers.ModelSerializer):
 
     def get_auth(self, obj):
         return "ADMIN"
+
+
+class UUIDTodoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UUIDTodo
+        fields = ["id"]

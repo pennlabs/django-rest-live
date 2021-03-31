@@ -12,3 +12,6 @@ dist/
 __pycache__/
 .tox
 test-results/
+
+# Test DB
+db.sqlite3
