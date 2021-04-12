@@ -7,7 +7,7 @@ from test_app.models import Todo
 class TodoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Todo
-        fields = ["id", "text", "done", "another_field"]
+        fields = ["id", "text", "done", "score"]
 
 
 class KwargsTodoSerializer(serializers.ModelSerializer):
@@ -26,7 +26,7 @@ class AuthedTodoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Todo
-        fields = ["id", "text", "done", "another_field", "auth"]
+        fields = ["id", "text", "done", "score", "auth"]
 
     def get_auth(self, obj):
         return "ADMIN"
