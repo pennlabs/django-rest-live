@@ -5,9 +5,12 @@ from test_app.models import Todo
 
 
 class TodoSerializer(serializers.ModelSerializer):
+    text_length = serializers.IntegerField(required=False, read_only=True)
+
     class Meta:
         model = Todo
-        fields = ["id", "text", "done", "score"]
+        fields = ["id", "text", "done", "score", "text_length"]
+        read_only_fields = ["text_length"]
 
 
 class KwargsTodoSerializer(serializers.ModelSerializer):

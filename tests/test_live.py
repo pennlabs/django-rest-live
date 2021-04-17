@@ -19,7 +19,8 @@ from test_app.views import (
     ConditionalTodoViewSet,
     KwargViewSet,
     FilteredViewSet,
-    Top5ViewSet
+    Top5ViewSet,
+    AnnotatedTodoViewSet
 )
 from tests.utils import RestLiveTestCase
 
@@ -411,6 +412,38 @@ class Top5Test(RestLiveTestCase):
         todo.score = 10  # Update leaving the top-5
         await db(todo.save)()
         await self.assertReceivedBroadcastForTodo(todo, DELETED, req)
+
+
+class AnnotatedTodoTest(RestLiveTestCase):
+    """
+    Tests to make sure that subscriptions properly annotate the queryset.
+    """
+
+    async def asyncSetUp(self):
+        router = RealtimeRouter()
+        router.register(AnnotatedTodoViewSet)
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+        self.list = await db(List.objects.create)(name="test list")
+
+    async def asyncTearDown(self):
+        await self.client.disconnect()
+
+    @async_test
+    async def test_annotations(self):
+        req = await self.subscribe_to_list()
+
+        todo_text = "hello"
+        todo = await self.make_todo(text=todo_text)
+        res = await self.client.receive_json_from()
+        self.assertEqual(res['instance']['textLength'], len(todo_text))
+
+        todo_text = "modified"
+        todo.text = todo_text
+        await db(todo.save)()
+        res = await self.client.receive_json_from()
+        self.assertEqual(res['instance']['textLength'], len(todo_text))
 
 
 class PrivateRouterTests(RestLiveTestCase):
