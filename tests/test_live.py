@@ -19,8 +19,7 @@ from test_app.views import (
     ConditionalTodoViewSet,
     KwargViewSet,
     FilteredViewSet,
-    Top5ViewSet,
-    AnnotatedTodoViewSet
+    AnnotatedTodoViewSet,
 )
 from tests.utils import RestLiveTestCase
 
@@ -380,40 +379,6 @@ class QuerysetFetchTest(RestLiveTestCase):
         await self.assertReceivedBroadcastForTodo(new_todo, CREATED, req)
 
 
-class Top5Test(RestLiveTestCase):
-    """
-    Tests to make sure that subscriptions properly respect the queryset slicing on the view.
-    """
-
-    async def asyncSetUp(self):
-        router = RealtimeRouter()
-        router.register(Top5ViewSet)
-        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
-        connected, _ = await self.client.connect()
-        self.assertTrue(connected)
-        self.list = await db(List.objects.create)(name="test list")
-
-    async def asyncTearDown(self):
-        await self.client.disconnect()
-
-    @async_test
-    async def test_top5(self):
-        for i in range(1, 10):
-            await self.make_todo(score=i)
-        req = await self.subscribe_to_list()
-
-        todo = await self.make_todo(score=1)  # Create a top-scoring todo
-        await self.assertReceivedBroadcastForTodo(todo, CREATED, req)
-
-        todo.score = 2  # Update staying in the top-5
-        await db(todo.save)()
-        await self.assertReceivedBroadcastForTodo(todo, UPDATED, req)
-
-        todo.score = 10  # Update leaving the top-5
-        await db(todo.save)()
-        await self.assertReceivedBroadcastForTodo(todo, DELETED, req)
-
-
 class AnnotatedTodoTest(RestLiveTestCase):
     """
     Tests to make sure that subscriptions properly annotate the queryset.
@@ -437,13 +402,13 @@ class AnnotatedTodoTest(RestLiveTestCase):
         todo_text = "hello"
         todo = await self.make_todo(text=todo_text)
         res = await self.client.receive_json_from()
-        self.assertEqual(res['instance']['textLength'], len(todo_text))
+        self.assertEqual(res["instance"]["textLength"], len(todo_text))
 
         todo_text = "modified"
         todo.text = todo_text
         await db(todo.save)()
         res = await self.client.receive_json_from()
-        self.assertEqual(res['instance']['textLength'], len(todo_text))
+        self.assertEqual(res["instance"]["textLength"], len(todo_text))
 
 
 class PrivateRouterTests(RestLiveTestCase):

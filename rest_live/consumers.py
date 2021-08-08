@@ -221,22 +221,13 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
             model = view.get_model_class()
             renderer = view.perform_content_negotiation(view.request)[0]
-            is_known_instance = instance_pk in subscription.pks_in_queryset
-            instance = None
 
-            # Can't use a get() to check if instance_pk is in the queryset because
-            # get_queryset() might return sliced results
-            qs = view.filter_queryset(view.get_queryset())
-
-            # Use queryset to include any annotations added
-            for obj in qs:
-                if obj.pk == instance_pk:
-                    instance = obj
-                    action = UPDATED if is_known_instance else CREATED
-                    break
-
-            if instance is None:
-                if not is_known_instance:
+            is_existing_instance = instance_pk in subscription.pks_in_queryset
+            try:
+                instance = view.filter_queryset(view.get_queryset()).get(pk=instance_pk)
+                action = UPDATED if is_existing_instance else CREATED
+            except model.DoesNotExist:
+                if not is_existing_instance:
                     # If the model doesn't exist in the queryset now, and also is not in the set of PKs that we've seen,
                     # then we truly don't have permission to see it.
                     return

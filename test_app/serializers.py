@@ -9,7 +9,7 @@ class TodoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Todo
-        fields = ["id", "text", "done", "score", "text_length"]
+        fields = ["id", "text", "done", "another_field", "text_length"]
         read_only_fields = ["text_length"]
 
 
@@ -29,7 +29,7 @@ class AuthedTodoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Todo
-        fields = ["id", "text", "done", "score", "auth"]
+        fields = ["id", "text", "done", "another_field", "auth"]
 
     def get_auth(self, obj):
         return "ADMIN"
