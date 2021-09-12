@@ -1,3 +1,5 @@
+from django.db.models.functions import Length
+
 from rest_framework import viewsets, filters
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import (
@@ -59,10 +61,9 @@ class FilteredViewSet(GenericAPIView, RealtimeMixin):
     serializer_class = TodoSerializer
 
 
-class Top5ViewSet(GenericAPIView, RealtimeMixin):
-    queryset = Todo.objects.order_by("score")
+class AnnotatedTodoViewSet(GenericAPIView, RealtimeMixin):
+    queryset = Todo.objects.all()
     serializer_class = TodoSerializer
 
     def get_queryset(self):
-        # Limit results to the top-5 Todos by score
-        return super().get_queryset()[:5]
+        return super().get_queryset().annotate(text_length=Length("text"))
