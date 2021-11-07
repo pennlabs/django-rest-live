@@ -269,3 +269,34 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             self.send_broadcast(
                 subscription.request_id, model_label, action, instance_data, renderer
             )
+
+    def model_deleted(self, event):
+        channel_name: str = event["channel_name"]
+        instance_pk: int = event["instance_pk"]
+        model_label: str = event["model"]
+
+        viewset_class = self.registry[model_label]
+
+        for subscription in self.subscriptions[channel_name]:
+            view = viewset_class.from_scope(
+                subscription.action,
+                self.scope,
+                subscription.view_kwargs,
+                subscription.query_params,
+            )
+            renderer = view.perform_content_negotiation(view.request)[0]
+            is_existing_instance = instance_pk in subscription.pks_in_queryset
+
+            if is_existing_instance:
+                instance_data = {
+                    view.lookup_field: instance_pk,
+                    "id": instance_pk,
+                }
+                subscription.pks_in_queryset.remove(instance_pk)
+                self.send_broadcast(
+                    subscription.request_id,
+                    model_label,
+                    DELETED,
+                    instance_data,
+                    renderer,
+                )

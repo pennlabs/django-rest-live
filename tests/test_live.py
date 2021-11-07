@@ -135,14 +135,14 @@ class BasicListTests(RestLiveTestCase):
     # TODO: Fix delete
     # TODO: Think about adding a way to mark a field as a "conditional delete" so when it updates in the DB it
     #       sends the delete signal to the frontend
-    # @async_test
-    # async def test_list_subscribe_delete(self):
-    #     new_todo: Todo = await self.make_todo()
-    #     await self.subscribe_to_list()
-    #     pk = new_todo.pk
-    #     await db(new_todo.delete)()
-    #     new_todo.id = pk
-    #     await self.assertReceivedUpdateForTodo(new_todo, DELETED)
+    @async_test
+    async def test_list_subscribe_delete(self):
+        new_todo = await self.make_todo()
+        req = await self.subscribe_to_list()
+        pk = new_todo.pk
+        await db(new_todo.delete)()
+        new_todo.id = pk
+        await self.assertReceivedBroadcastForTodo(new_todo, DELETED, req)
 
 
 class PermissionsTests(RestLiveTestCase):
