@@ -24,18 +24,6 @@ channels = ">=2.0.0"
 djangorestframework = "^3.12.4"
 
 [tool.poetry.dev-dependencies]
-black = "^20.8b1"
-flake8 = "^3.9.0"
-flake8-isort = "^4.0.0"
-flake8-quotes = "^3.2.0"
-flake8-absolute-import = "^1.0"
-pytest = "^6.2.3"
-pytest-cov = "^2.11.1"
-pytest-django = "^4.1.0"
-coverage = "^5.5"
-djangorestframework-camel-case = "^1.2.0"
-pytest-asyncio = "^0.16.0"
-pytest-mock = "^3.6.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
