@@ -1,17 +1,10 @@
 // import dedent from 'ts-dedent';
-import { Construct } from "constructs";
-import { App, Stack } from "cdkactions";
-import {PyPIPublishStack} from "@pennlabs/kraken";
-
-export class MyStack extends Stack {
-  constructor(scope: Construct, name: string) {
-    super(scope, name);
-
-    // define workflows here
-
-  }
-}
+import { App } from "cdkactions";
+import { PyPIPublishStack } from "@pennlabs/kraken";
 
 const app = new App();
-new PyPIPublishStack(app)
+new PyPIPublishStack(app, {
+  pythonMatrixVersions: [3.7, 3.8, 3.9]
+});
+
 app.synth();
