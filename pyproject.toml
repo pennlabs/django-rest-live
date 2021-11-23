@@ -33,6 +33,7 @@ pytest = "^6.2.3"
 pytest-cov = "^2.11.1"
 pytest-django = "^4.1.0"
 coverage = "^5.5"
+djangorestframework-camel-case = "^1.2.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
