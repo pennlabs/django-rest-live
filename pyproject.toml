@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "django-rest-live"
-version = "0.5.0"
+version = "0.6.0"
 description = "Subscriptions for Django REST Framework over Websockets."
 authors = ["Penn Labs <contact@pennlabs.org>"]
 license = "MIT"
