@@ -1,0 +1,25 @@
+{
+  "name": "cdk",
+  "version": "0.1.0",
+  "main": "main.js",
+  "types": "main.ts",
+  "license": "Apache-2.0",
+  "private": true,
+  "scripts": {
+    "synth": "cdkactions synth",
+    "compile": "tsc",
+    "watch": "tsc -w",
+    "build": "yarn compile && yarn synth",
+    "upgrade-cdk": "yarn upgrade cdkactions@latest cdkactions-cli@latest"
+  },
+  "dependencies": {
+    "@pennlabs/kraken": "^0.6.4",
+    "cdkactions": "^0.2.3",
+    "constructs": "^3.2.109"
+  },
+  "devDependencies": {
+    "@types/node": "^16.11.9",
+    "cdkactions-cli": "^0.2.3",
+    "typescript": "^4.5.2"
+  }
+}
