@@ -18,10 +18,10 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = ">=3.7"
 Django = ">=2.2"
 channels = ">=2.0.0"
-djangorestframework = ">=3.9"
+djangorestframework = ">=3.11"
 
 [tool.poetry.dev-dependencies]
 
