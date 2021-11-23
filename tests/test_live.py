@@ -1,3 +1,5 @@
+import os
+
 from channels.auth import AuthMiddlewareStack
 from django.contrib.auth import get_user_model
 from rest_framework.generics import GenericAPIView
@@ -6,6 +8,7 @@ from rest_framework.views import APIView
 from rest_live.mixins import RealtimeMixin
 from rest_live.testing import APICommunicator
 from channels.db import database_sync_to_async as db
+from channels import __version__ as channels_version
 
 from rest_live import CREATED, UPDATED, DELETED
 from rest_live.routers import RealtimeRouter
@@ -26,6 +29,13 @@ from tests.utils import RestLiveTestCase
 User = get_user_model()
 
 
+def make_client(consumer, path, middleware=lambda x: x, headers=None):
+    if channels_version.startswith("2"):
+        return APICommunicator(middleware(consumer), path, headers)
+    else:
+        return APICommunicator(middleware(consumer.as_asgi()), path, headers)
+
+
 class BasicResourceTests(RestLiveTestCase):
     """
     Basic subscription tests on single resources, retrieving by the lookup_field
@@ -36,7 +46,7 @@ class BasicResourceTests(RestLiveTestCase):
         router = RealtimeRouter()
         router.register(TodoViewSet)
 
-        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        self.client = make_client(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
         self.list = await db(List.objects.create)(name="test list")
@@ -74,7 +84,7 @@ class BasicListTests(RestLiveTestCase):
         router = RealtimeRouter()
         router.register(TodoViewSet)
 
-        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        self.client = make_client(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
         self.list = await db(List.objects.create)(name="test list")
@@ -150,18 +160,20 @@ class PermissionsTests(RestLiveTestCase):
         self.list = await db(List.objects.create)(name="test list")
         router = RealtimeRouter()
         router.register(AuthedTodoViewSet)
-        self.client = APICommunicator(
-            AuthMiddlewareStack(router.as_consumer()),
+        self.client = make_client(
+            router.as_consumer(),
             "/ws/subscribe/",
+            AuthMiddlewareStack
         )
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
 
         self.user = await db(User.objects.create_user)("test")
         headers = await get_headers_for_user(self.user)
-        self.auth_client = APICommunicator(
-            AuthMiddlewareStack(router.as_consumer()),
+        self.auth_client = make_client(
+            router.as_consumer(),
             "/ws/subscribe/",
+            AuthMiddlewareStack,
             headers,
         )
         connected, _ = await self.auth_client.connect()
@@ -191,17 +203,19 @@ class PermissionsTests(RestLiveTestCase):
         await self.auth_client.disconnect()
         router = RealtimeRouter()
         router.register(ConditionalTodoViewSet)
-        self.client = APICommunicator(
-            AuthMiddlewareStack(router.as_consumer()),
+        self.client = make_client(
+            router.as_consumer(),
             "/ws/subscribe/",
+            AuthMiddlewareStack,
         )
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
 
         headers = await get_headers_for_user(self.user)
-        self.auth_client = APICommunicator(
-            AuthMiddlewareStack(router.as_consumer()),
+        self.auth_client = make_client(
+            router.as_consumer(),
             "/ws/subscribe/",
+            AuthMiddlewareStack,
             headers,
         )
         connected, _ = await self.auth_client.connect()
@@ -236,7 +250,7 @@ class ViewKwargTests(RestLiveTestCase):
     async def asyncSetUp(self):
         router = RealtimeRouter()
         router.register(KwargViewSet)
-        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        self.client = make_client(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
         self.list = await db(List.objects.create)(name="test list")
@@ -286,7 +300,7 @@ class QueryParamsTests(RestLiveTestCase):
     async def asyncSetUp(self):
         router = RealtimeRouter()
         router.register(TodoViewSet)
-        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        self.client = make_client(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
         self.list = await db(List.objects.create)(name="test list")
@@ -333,7 +347,7 @@ class QuerysetFetchTest(RestLiveTestCase):
     async def asyncSetUp(self):
         router = RealtimeRouter()
         router.register(FilteredViewSet)
-        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        self.client = make_client(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
         self.list = await db(List.objects.create)(name="test list")
@@ -387,7 +401,7 @@ class AnnotatedTodoTest(RestLiveTestCase):
     async def asyncSetUp(self):
         router = RealtimeRouter()
         router.register(AnnotatedTodoViewSet)
-        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        self.client = make_client(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
         self.list = await db(List.objects.create)(name="test list")
@@ -419,9 +433,10 @@ class PrivateRouterTests(RestLiveTestCase):
 
     @async_test
     async def test_reject_no_auth(self):
-        self.client = APICommunicator(
-            AuthMiddlewareStack(self.router.as_consumer()),
+        self.client = make_client(
+            self.router.as_consumer(),
             "/ws/subscribe/",
+            AuthMiddlewareStack
         )
         connected, code = await self.client.connect()
         self.assertFalse(connected)
@@ -429,7 +444,7 @@ class PrivateRouterTests(RestLiveTestCase):
 
     @async_test
     async def test_reject_no_middleware(self):
-        self.client = APICommunicator(
+        self.client = make_client(
             self.router.as_consumer(),
             "/ws/subscribe/",
         )
@@ -441,8 +456,8 @@ class PrivateRouterTests(RestLiveTestCase):
     async def test_accept_with_auth(self):
         user = await db(User.objects.create_user)("test")
         headers = await get_headers_for_user(user)
-        self.client = APICommunicator(
-            AuthMiddlewareStack(self.router.as_consumer()), "/ws/subscribe/", headers
+        self.client = make_client(
+            self.router.as_consumer(), "/ws/subscribe/", AuthMiddlewareStack, headers
         )
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
@@ -470,15 +485,17 @@ class MultiRouterTests(RestLiveTestCase):
 
     @async_test
     async def test_broadcasts_one_per_router(self):
-        self.client1 = APICommunicator(
-            AuthMiddlewareStack(self.router1.as_consumer()),
+        self.client1 = make_client(
+            self.router1.as_consumer(),
             "/ws/subscribe/",
+            AuthMiddlewareStack,
             self.headers,
         )
         self.assertTrue(await self.client1.connect())
-        self.client2 = APICommunicator(
-            AuthMiddlewareStack(self.router2.as_consumer()),
+        self.client2 = make_client(
+            self.router2.as_consumer(),
             "/ws/subscribe/auth/",
+            AuthMiddlewareStack,
             self.headers,
         )
         self.assertTrue(await self.client2.connect())
@@ -494,14 +511,15 @@ class MultiRouterTests(RestLiveTestCase):
 
     @async_test
     async def test_broadcasts_only_to_one(self):
-        self.client1 = APICommunicator(
-            AuthMiddlewareStack(self.router1.as_consumer()),
+        self.client1 = make_client(
+            self.router1.as_consumer(),
             "/ws/subscribe/",
+            AuthMiddlewareStack,
             self.headers,
         )
         self.assertTrue(await self.client1.connect())
-        self.client2 = APICommunicator(
-            AuthMiddlewareStack(self.router2.as_consumer()), "/ws/subscribe/auth/"
+        self.client2 = make_client(
+            self.router2.as_consumer(), "/ws/subscribe/auth/", AuthMiddlewareStack,
         )
         self.assertTrue(await self.client2.connect())
 
@@ -567,7 +585,7 @@ class APIErrorTests(RestLiveTestCase):
         router = RealtimeRouter()
         router.register(TodoViewSet)
 
-        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        self.client = make_client(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
 

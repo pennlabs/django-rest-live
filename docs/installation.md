@@ -36,7 +36,7 @@ router = RealtimeRouter()
 
 websockets = AuthMiddlewareStack(
     URLRouter([
-        path("ws/subscribe/", router.as_consumer(), name="subscriptions"), 
+        path("ws/subscribe/", router.as_consumer().as_asgi(), name="subscriptions"), 
         "Other routing here...",
     ])
 )
@@ -44,5 +44,7 @@ application = ProtocolTypeRouter({
     "websocket": websockets
 })
 ```
+
+> Note: if using Channels version 2, omit the `as_asgi()` method.
 
 That's it! You're now ready to configure and use `django-rest-live`.
