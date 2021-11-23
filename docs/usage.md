@@ -74,11 +74,13 @@ router.register(TaskViewSet)  # Register all ViewSets here
 
 websockets = AuthMiddlewareStack(
     URLRouter([
-        path("ws/subscribe/", router.as_consumer(), name="subscriptions"), 
+        path("ws/subscribe/", router.as_consumer().as_asgi(), name="subscriptions"), 
         "Other routing here...",
     ])
 ```
 
+> Note: if using Channels version 2, omit the `as_asgi()` method.
+ 
 ## Subscribing to single instances
 Subscribing to a single model's updates from a client requires opening a [WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
 connection to the URL you specified during setup. In our example case, that URL is `/ws/subscribe/`. After the connection
