@@ -2,19 +2,19 @@
 # yarn lockfile v1
 
 
-"@pennlabs/kraken@^0.6.4":
-  version "0.6.4"
-  resolved "https://registry.yarnpkg.com/@pennlabs/kraken/-/kraken-0.6.4.tgz#7b8d90c461dcf4574b7ccf0df76e400c94eea381"
-  integrity sha512-/K5cuZlfCzGq1JVVUHZ6KyeYX8IJLV6H3QAHYIALhlvM6pz/0y0YJ5BGcroH0qKtkxHob9NjiTXjokvi60ZeTw==
+"@pennlabs/kraken@^0.7.0":
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/@pennlabs/kraken/-/kraken-0.7.0.tgz#35486c1966d4a98acad5581d8cb92bdf72ed9090"
+  integrity sha512-bSN8pMjIUoWkMWQZodQo+sZPgHh1LxYb1Cr8ATVfkygueVXsj52t3If/fUxhSl3ur7mDQ9vBgwEKVcIA9xrfeg==
   dependencies:
     cdkactions "^0.2.0"
     constructs "^3.2.80"
-    dedent-js "^1.0.1"
+    ts-dedent "^2.2.0"
 
-"@types/node@^16.11.9":
-  version "16.11.9"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-16.11.9.tgz#879be3ad7af29f4c1a5c433421bf99fab7047185"
-  integrity sha512-MKmdASMf3LtPzwLyRrFjtFFZ48cMf8jmX5VRYrDQiJa8Ybu5VAmkqBWqKU8fdCwD8ysw4mQ9nrEHvzg6gunR7A==
+"@types/node@^16.11.11":
+  version "16.11.11"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-16.11.11.tgz#6ea7342dfb379ea1210835bada87b3c512120234"
+  integrity sha512-KB0sixD67CeecHC33MYn+eYARkqTheIRNuu97y2XMjR7Wu3XibO1vaY6VBV6O/a89SPI81cEUIYT87UqUWlZNw==
 
 ansi-regex@^5.0.1:
   version "5.0.1"
@@ -79,11 +79,6 @@ constructs@^3.2.109, constructs@^3.2.80:
   resolved "https://registry.yarnpkg.com/constructs/-/constructs-3.3.161.tgz#9726b1d450f3b9aca7907230f2248e3fd4058ce4"
   integrity sha512-/27vW3fo0iyb3py4vKI1BduEYmv8vv8uJgLXvI+5F0Jbnn0/E+As2wkGMa7bumhzCd0Ckv/USkAXstGYVXTYQA==
 
-dedent-js@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/dedent-js/-/dedent-js-1.0.1.tgz#bee5fb7c9e727d85dffa24590d10ec1ab1255305"
-  integrity sha1-vuX7fJ5yfYXf+iRZDRDsGrElUwU=
-
 emoji-regex@^8.0.0:
   version "8.0.0"
   resolved "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-8.0.0.tgz#e818fd69ce5ccfcb404594f842963bf53164cc37"
@@ -138,9 +133,9 @@ require-directory@^2.1.1:
   integrity sha1-jGStX9MNqxyXbiNE/+f3kqam30I=
 
 sscaff@^1.2.0:
-  version "1.2.135"
-  resolved "https://registry.yarnpkg.com/sscaff/-/sscaff-1.2.135.tgz#b78357e71ce69623531f996e9b960e51375ed38b"
-  integrity sha512-m9KIfJaR3vp4S2aVDDdCz9fumMUzbvxraI+nLGLFi0dCyTCEsImxdJtTlRgdP33UPk4uR2UviQhzIV7iag+/aw==
+  version "1.2.142"
+  resolved "https://registry.yarnpkg.com/sscaff/-/sscaff-1.2.142.tgz#237a7c4fc1e9e596d7885ebb7b7391580363beb3"
+  integrity sha512-VovWfZ/IfkPwQrCmoP/WJU3MgGTCWYP+YQGQw3VjZsEkgzTDIAOV8GjwFY3JJFwS+ElJ3dnr58bVDPNIspWU7Q==
 
 string-width@^4.1.0, string-width@^4.2.0:
   version "4.2.3"
@@ -158,7 +153,7 @@ strip-ansi@^6.0.0, strip-ansi@^6.0.1:
   dependencies:
     ansi-regex "^5.0.1"
 
-ts-dedent@^2.0.0:
+ts-dedent@^2.0.0, ts-dedent@^2.2.0:
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/ts-dedent/-/ts-dedent-2.2.0.tgz#39e4bd297cd036292ae2394eb3412be63f563bb5"
   integrity sha512-q5W7tVM71e2xjHZTlgfTDoPF/SmqKG5hddq9SzR49CH2hayqRKJtQ4mtRlSxKaJlR/+9rEM+mnBHf7I2/BQcpQ==
