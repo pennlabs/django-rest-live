@@ -13,9 +13,10 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - 3.7
-          - 3.8
-          - 3.9
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
@@ -37,10 +38,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Verify tag
+        shell: bash
         run: |-
           GIT_TAG=${GITHUB_REF/refs\/tags\//}
           LIBRARY_VERSION=$(poetry version -s)
-          if [[ "$GIT_TAG" != LIBRARY_VERSION ]]; then exit 1; fi
+          if [[ "$GIT_TAG" != "$LIBRARY_VERSION" ]]; then echo "Tag ($GIT_TAG) does not match poetry version ($LIBRARY_VERSION)"; exit 1; fi
       - name: Build
         run: poetry build
       - name: Publish
