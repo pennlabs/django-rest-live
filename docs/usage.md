@@ -1,6 +1,6 @@
-# Usage
+# Tutorial
 
-These docs will use an example to-do app called `todolist` with the following models and serializers:
+This page will use an example to-do app called `todolist` with the following models and serializers:
 ```python
 # todolist/models.py
 from django.db import models

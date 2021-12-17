@@ -1,6 +1,6 @@
-# RealtimeMixin
+# RealtimeMixin Reference
 
-`rest_live.mixins.RealtimeMixin` markes a Django REST Framework
+`rest_live.mixins.RealtimeMixin` marks a Django REST Framework
 Generic APIView as realtime capable. Any subclass class of
 [`rest_framework.generics.GenericAPIView`](https://www.django-rest-framework.org/api-guide/generic-views/#genericapiview)
 can be used with `RealtimeMixin`, like `ListAPIView`, `RetrieveAPIView`, and `ModelViewSet`.
