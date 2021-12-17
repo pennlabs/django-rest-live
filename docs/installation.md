@@ -12,7 +12,7 @@
 If your project already uses REST framework, but this is the first realtime component,
 then make sure to install and properly configure Django Channels before continuing.
 
-You can find details in [the Channels documentation](https://channels.readthedocs.io/en/2.x/installation.html).
+You can find details in [the Channels documentation](https://channels.readthedocs.io/en/latest/installation.html).
 
 1. Add `rest_live` to your `INSTALLED_APPS`
 ```python
