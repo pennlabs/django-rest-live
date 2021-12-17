@@ -75,14 +75,14 @@ router.register(TaskViewSet)  # Register all ViewSets here
 websockets = AuthMiddlewareStack(
     URLRouter([
         path("ws/subscribe/", router.as_consumer().as_asgi(), name="subscriptions"), 
-        "Other routing here...",
+        # Other routing here...
     ])
 ```
 
 > Note: if using Channels version 2, omit the `as_asgi()` method.
  
 ## Subscribing to single instances
-Subscribing to a single model's updates from a client requires opening a [WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
+Subscribing to a single instance's updates from a client requires opening a [WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
 connection to the URL you specified during setup. In our example case, that URL is `/ws/subscribe/`. After the connection
 is established, send a JSON message (using `JSON.stringify()`) in this format:
 
@@ -97,7 +97,7 @@ is established, send a JSON message (using `JSON.stringify()`) in this format:
 ```
 
 You should generate the `id` client side. It's used to track the subscription you request throughout 
-its lifetime -- we'll see that it's referenced both in error messages and broadcasts.
+its lifetime, so it should be unique for this connection. We'll see how it's referenced both in error messages and broadcasts.
 
 The model label should be in Django's standard `app.modelname` format. `lookup_by` should be the value of the
 [lookup field](https://www.django-rest-framework.org/api-guide/generic-views/#attributes) for the model instance
@@ -105,8 +105,8 @@ we're subscribing to. Since this defaults to  [`pk`](https://docs.djangoproject.
 it's the conceptual equivalent of subscribing to the instance which would be returned from
 `Task.objects.filter(pk=<value>)`.
 
-As mentioned above, the client should make RESTful HTTP requests for resources to determine which IDs it wants to
-subscribe to; there's no capability for querying models built in to the Websocket API, just subscriptions and broadcasts.
+The client should make RESTful HTTP requests for resources to determine which IDs it wants to
+subscribe to; there's no capability for querying built in to the Websocket API, just subscriptions and broadcasts.
 
 When the Task with primary key `1` updates, a message in this format will be sent over the websocket:
 
@@ -133,8 +133,8 @@ Unsubscribing is even simpler – simply pass the original request `id` along in
 ```
 
 ## Subscribing to lists
-Being attached to a generic view with a `get_queryset()` method, you can also subscribe to updates for all instances
-that would be returned from the view's `list` action. The subscription looks like this:
+Being attached to a generic view with a `get_queryset()` method, you can also subscribe to updates to a view's queryset. 
+The subscription looks like this:
 
 
 ```json

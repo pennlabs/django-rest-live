@@ -9,12 +9,11 @@
 
 ## Set Up
 
-If your project already uses REST framework, but this is the first realtime component,
-then make sure to install and properly configure Django Channels before continuing.
+If you haven't 
+[installed and properly configured Django Channels](https://channels.readthedocs.io/en/latest/installation.html),
+then make sure to do that before continuing on with Django REST Live.
 
-You can find details in [the Channels documentation](https://channels.readthedocs.io/en/latest/installation.html).
-
-1. Add `rest_live` to your `INSTALLED_APPS`
+1. Add `rest_live` to your `INSTALLED_APPS`.
 ```python
 INSTALLED_APPS = [
     # Any other django apps
@@ -24,8 +23,8 @@ INSTALLED_APPS = [
 ]
 ```
     
-2. Create a `RealtimeRouter` in your ASGI routing file and add Add `router.consumer` to your websocket routing. Feel'
-free to choose any URL path, here we've chosen `/ws/subscribe/`. 
+2. Create a `RealtimeRouter` in your ASGI routing file and add `router.consumer` to the websocket routing you set up
+   with Django Channels. Feel free to choose any URL path, here we've chosen `/ws/subscribe/`. 
 ```python
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
@@ -37,7 +36,7 @@ router = RealtimeRouter()
 websockets = AuthMiddlewareStack(
     URLRouter([
         path("ws/subscribe/", router.as_consumer().as_asgi(), name="subscriptions"), 
-        "Other routing here...",
+        # Other routing here...
     ])
 )
 application = ProtocolTypeRouter({

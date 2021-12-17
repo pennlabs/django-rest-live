@@ -1,6 +1,6 @@
 # Testing
 As of Django 3.1, you can write asynchronous tests in Django `TestCase`s. You can set up a test case by following
-the snippet below, using the test communicator provided in `rest_live.testing.APICommunicator`:
+the snippet below, using the test communicator provided in `rest_live.testing.APICommunicator`.
 
 ## Sample TestCase
 

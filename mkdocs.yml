@@ -7,8 +7,9 @@ nav:
   - Getting Started:
     - 'installation.md'
     - 'usage.md'
-  - Reference:
     - 'testing.md'
-    - 'router.md'
+  - Reference:
     - 'api.md'
     - 'mixin.md'
+    - 'router.md'
+    - 'signals.md'
