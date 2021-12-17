@@ -12,7 +12,7 @@ by [Django Channels](https://github.com/django/channels).
 The goal of this project is to be as close to a drop-in realtime solution as possible for projects already using
 Django REST Framework.
 
-The only change to your existing code is dropping in a mixin to the REST Framework view that
+The only change to your existing code is to add a mixin to the REST Framework view that
 you want to make realtime-capable:
 
 ```python

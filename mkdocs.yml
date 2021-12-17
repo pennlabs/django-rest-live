@@ -4,6 +4,7 @@ theme:
   include_homepage_in_sidebar: False
 repo_name: https://github.com/pennlabs/django-rest-live
 nav:
+  - GitHub: 'https://github.com/pennlabs/django-rest-live'
   - Getting Started:
     - 'installation.md'
     - 'usage.md'

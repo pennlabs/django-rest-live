@@ -1,4 +1,4 @@
-# Websocket API Reference
+# Websocket API
 ## General format
 Messages are sent from over the websocket connection
 as JSON strings. The easiest way to generate these is to construct an object
