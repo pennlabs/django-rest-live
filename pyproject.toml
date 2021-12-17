@@ -19,7 +19,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.7"
-Django = ">=2.2"
+Django = ">=3.1"
 channels = ">=2.0.0"
 djangorestframework = ">=3.11"
 
