@@ -4,9 +4,13 @@ theme:
   include_homepage_in_sidebar: False
 repo_name: https://github.com/pennlabs/django-rest-live
 nav:
-  - 'installation.md'
-  - 'usage.md'
-  - 'testing.md'
-  - 'router.md'
-  - 'api.md'
-  - 'mixin.md'
+  - GitHub: 'https://github.com/pennlabs/django-rest-live'
+  - Getting Started:
+    - 'installation.md'
+    - 'usage.md'
+    - 'testing.md'
+  - Reference:
+    - 'api.md'
+    - 'mixin.md'
+    - 'router.md'
+    - 'signals.md'

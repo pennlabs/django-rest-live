@@ -41,6 +41,7 @@ on the instance to be subscribed to.
 - `view_kwargs` (_object_) – View keyword arguments to be passed along to the view when processing
 subscriptions. See [here](https://docs.djangoproject.com/en/3.1/topics/http/urls/#how-django-processes-a-request)
 for information on keyword arguments. Optional; defaults to `{}`.
+  
 – `query_params` (_object_) – `GET` parameters to be accessible on the view.
 See [Django documentation](https://docs.djangoproject.com/en/3.1/ref/request-response/#django.http.HttpRequest.GET) 
 and [DRF documentation](https://www.django-rest-framework.org/api-guide/requests/#query_params).
