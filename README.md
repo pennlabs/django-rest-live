@@ -24,7 +24,7 @@ class TaskViewSet(ModelViewSet, RealtimeMixin): # The only change is adding the 
     serializer_class = TaskSerializer
 ```
 
-There's a few more lines needed to set up routing with Django Channels, and you should check out
+There's a few more lines needed to set up routing with Django Channels, so you should check out
 [the full tutorial and reference documentation](https://django-rest-live.readthedocs.io)!
 
 `django-rest-live` took initial inspiration from [this article by Kit La Touche](https://www.oddbird.net/2018/12/12/channels-and-drf/).
