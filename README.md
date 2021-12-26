@@ -5,12 +5,11 @@
 [![Coverage Status](https://codecov.io/gh/pennlabs/django-rest-live/branch/master/graph/badge.svg)](https://codecov.io/gh/pennlabs/django-rest-live)
 [![PyPi Package](https://img.shields.io/pypi/v/django-rest-live.svg)](https://pypi.org/project/django-rest-live/)
 
-`django-rest-live` adds real-time subscriptions over websockets to
-[Django REST Framework](https://github.com/encode/django-rest-framework) views by leveraging websocket support provided 
-by [Django Channels](https://github.com/django/channels).
+`django-rest-live` enables frontends which use an API built with [Django REST Framework](https://github.com/encode/django-rest-framework) to receive a stream of updates to querysets and model instances over a websocket connection managed by [Django Channels](https://github.com/django/channels).
 
-The goal of this project is to be as close to a drop-in realtime solution as possible for projects already using
-Django REST Framework.
+REST Framework and Channels are both great extensions to Django, but there is no built-in integration that allows them to work together. REST Framework author Tom Christie has mentioned plans for websocket support in REST Framework on a few occasions ([2016](https://www.django-rest-framework.org/community/mozilla-grant/#realtime-apis), [2018](https://groups.google.com/g/django-rest-framework/c/3-QNn3SYlZI/m/Gwx6rFr4BQAJ?pli=1)), but at the time, async support in Django was in the early planning stages and Channels was being [rewritten with breaking API changes](https://channels.readthedocs.io/en/2.x/one-to-two.html). [Most](https://github.com/encode/django-rest-framework/issues/5642) of Tom Christie's effort to expand the realtime ecosystem in Python went into [`uvicorn`](https://github.com/encode/uvicorn) and an expanding array of libraries built around [starlette](https://github.com/encode/starlette) rather than Django and REST Framework.
+
+The need for real-time updates with REST Framework still exists today, however, and `django-rest-live` aims to bridge the gap between Channels and REST Framework in a generic and boilerplate-free way.
 
 After running `pip install django-rest-live`, The only change to your existing code is to add a mixin to the REST
 Framework view that you want to make realtime-capable:
