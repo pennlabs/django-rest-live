@@ -1,6 +1,7 @@
 # Tutorial
 
 This page will use an example to-do app called `todolist` with the following models and serializers:
+
 ```python
 # todolist/models.py
 from django.db import models
@@ -74,16 +75,17 @@ router.register(TaskViewSet)  # Register all ViewSets here
 
 websockets = AuthMiddlewareStack(
     URLRouter([
-        path("ws/subscribe/", router.as_consumer().as_asgi(), name="subscriptions"), 
+        path("ws/subscribe/", router.as_consumer().as_asgi(), name="subscriptions"),
         # Other routing here...
     ])
 ```
 
 > Note: if using Channels version 2, omit the `as_asgi()` method.
- 
+
 ## Subscribing to single instances
-Subscribing to a single instance's updates from a client requires opening a [WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
-connection to the URL you specified during setup. In our example case, that URL is `/ws/subscribe/`. After the connection
+
+Subscribing to a updates equires opening a [WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
+on the client connection to the URL you specified during setup. In our example case, that URL is `/ws/subscribe/`. After the connection
 is established, send a JSON message (using `JSON.stringify()`) in this format:
 
 ```json
@@ -92,16 +94,16 @@ is established, send a JSON message (using `JSON.stringify()`) in this format:
   "id": 1337,
   "model": "todolist.Task",
   "action": "retrieve",
-  "lookup_by": 1 
+  "lookup_by": 1
 }
 ```
 
-You should generate the `id` client side. It's used to track the subscription you request throughout 
+You should generate the `id` client side. It's used to track the subscription you request throughout
 its lifetime, so it should be unique for this connection. We'll see how it's referenced both in error messages and broadcasts.
 
 The model label should be in Django's standard `app.modelname` format. `lookup_by` should be the value of the
 [lookup field](https://www.django-rest-framework.org/api-guide/generic-views/#attributes) for the model instance
-we're subscribing to. Since this defaults to  [`pk`](https://docs.djangoproject.com/en/3.1/topics/db/queries/#the-pk-lookup-shortcut),
+we're subscribing to. Since this defaults to [`pk`](https://docs.djangoproject.com/en/3.1/topics/db/queries/#the-pk-lookup-shortcut),
 it's the conceptual equivalent of subscribing to the instance which would be returned from
 `Task.objects.filter(pk=<value>)`.
 
@@ -112,11 +114,11 @@ When the Task with primary key `1` updates, a message in this format will be sen
 
 ```json
 {
-    "type": "broadcast",
-    "id": 1337,
-    "model": "test_app.Todo",
-    "action": "UPDATED",
-    "instance": {"id": 1, "text": "test", "done": true}
+  "type": "broadcast",
+  "id": 1337,
+  "model": "test_app.Todo",
+  "action": "UPDATED",
+  "instance": { "id": 1, "text": "test", "done": true }
 }
 ```
 
@@ -125,22 +127,23 @@ using the serializer defined in the view's `serializer_class` attribute or retur
 method.
 
 Unsubscribing is even simpler – simply pass the original request `id` along in a websocket message:
+
 ```json
 {
-    "type": "unsubscribe",
-    "id": 1337
+  "type": "unsubscribe",
+  "id": 1337
 }
 ```
 
 ## Subscribing to lists
-Being attached to a generic view with a `get_queryset()` method, you can also subscribe to updates to a view's queryset. 
-The subscription looks like this:
 
+Being attached to a generic view with a `get_queryset()` method, you can also subscribe to updates to a view's queryset.
+The subscription looks like this:
 
 ```json
 {
   "id": 1338,
-  "type": "subscription",
+  "type": "subscribe",
   "model": "todolist.Task",
   "action": "list"
 }
@@ -156,21 +159,21 @@ longer included in the queryset, the action in the broadcast will be `DELETED`.
 
 Note that `DELETED` actions can't be triggered from actual deletions from the database at this time.
 
-
 ## `request.user` and `request.session`
+
 Django REST Framework makes heavy use of the [`Request`](https://www.django-rest-framework.org/api-guide/requests/)
 object as a general context throughout the framework.
 [Permissions](https://www.django-rest-framework.org/api-guide/permissions/) are a good example: each permission check
 gets passed the `request` object along with the current `view` in order to verify if
-a given request has permission to view an object. 
+a given request has permission to view an object.
 
 However, broadcasts originate from database updates rather than an HTTP request, so
 `django-rest-live` uses the HTTP request that establishes the websocket connection as a basis for the `request`
 object accessible in views, permissions and serializers. `request.user` and `request.session`, normally populated
 via middleware, are available as expected.
 
-
 ## Passing parameters to subscriptions
+
 Views are often filtered in some way, using parameters in the URL
 passed as keyword arguments to the view, or as GET parameters after the `?`
 in the URL. These arguments can be passed to DRF through extra fields
@@ -178,6 +181,7 @@ on the initial subscription request to filter the queryset appropriately
 for a given subscription.
 
 ### `view.kwargs`
+
 Something that can't be
 inferred from the initial request are [view keyword arguments](https://docs.djangoproject.com/en/3.1/ref/urls/#django.urls.path),
 normally derived from the URL path to a resource in HTTP requests.
@@ -191,18 +195,21 @@ normally derived from the URL path to a resource in HTTP requests.
   "action": "retrieve",
   "lookup_by": 29,
   "view_kwargs": {
-    "list": 14 
+    "list": 14
   }
 }
 ```
-As a rule of thumb, if you have angle brackets in your URL pattern, like `title` in 
+
+As a rule of thumb, if you have angle brackets in your URL pattern, like `title` in
 `path('articles/<slug:title>/', views.article)`, then you're providing your view with
 keyword arguments, and you most likely need to provide those arguments to your View when requesting subscriptions too.
 
 ### `request.query_params`
+
 If you use `request.query_params` in your view at all, potentially from
 [filters](https://www.django-rest-framework.org/api-guide/filtering/#filtering-against-query-parameters) on your queryset,
 you can also pass in query parameters to your subscription with the `query_params` key:
+
 ```json
 {
   "type": "subscribe",
@@ -217,4 +224,4 @@ you can also pass in query parameters to your subscription with the `query_param
 
 If you're getting an `AttributeError` in your View when receiving a broadcast but not when doing normal HTTP REST
 operations, then you're probably making use of an attribute we didn't think of. In that case,
-please open an issue describing your use case! It'll go a long way to making this library more useful to all. 
+please open an issue describing your use case! It'll go a long way to making this library more useful to all.
