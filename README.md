@@ -68,7 +68,7 @@ To allow subscriptions to a queryset, add the `RealtimeMixin` to a GenericAPIVie
 ```python
 ...
 router = RealtimeRouter()
-router.register(TaskViewSet)  # Register all ViewSets here
+router.register(MyViewSet)  # Register all ViewSets here
 ...
 ```
 
