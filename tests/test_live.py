@@ -20,6 +20,7 @@ from test_app.views import (
     KwargViewSet,
     FilteredViewSet,
     AnnotatedTodoViewSet,
+    LookupTodoViewSet,
 )
 from tests.utils import RestLiveTestCase
 
@@ -409,6 +410,36 @@ class AnnotatedTodoTest(RestLiveTestCase):
         await db(todo.save)()
         res = await self.client.receive_json_from()
         self.assertEqual(res["instance"]["textLength"], len(todo_text))
+
+
+class LookupTodoTest(RestLiveTestCase):
+    """
+    Tests to make sure that subscriptions properly account for lookup fields other than pk.
+    """
+
+    async def asyncSetUp(self):
+        router = RealtimeRouter()
+        router.register(LookupTodoViewSet)
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+        self.list = await db(List.objects.create)(name="test list")
+        await db(Todo.objects.create)(list=self.list, text="test")
+
+    async def asyncTearDown(self):
+        await self.client.disconnect()
+
+    @async_test
+    async def test_lookup(self):
+        await self.subscribe_to_list()
+
+        todo_text = "test 1"
+        todo = await self.make_todo(text=todo_text)
+        res = await self.client.receive_json_from()
+
+        await db(todo.delete)()
+        res = await self.client.receive_json_from()
+        self.assertEqual(res["instance"]["text"], todo_text)
 
 
 class PrivateRouterTests(RestLiveTestCase):

@@ -40,6 +40,12 @@ class AuthedTodoViewSet(viewsets.ModelViewSet, RealtimeMixin):
     permission_classes = [IsAuthenticated]
 
 
+class LookupTodoViewSet(viewsets.ModelViewSet, RealtimeMixin):
+    queryset = Todo.objects.all()
+    serializer_class = TodoSerializer
+    lookup_field = "text"
+
+
 class KwargPermission(BasePermission):
     def has_permission(self, request, view):
         return view.kwargs.get("password", "") == "opensesame"
