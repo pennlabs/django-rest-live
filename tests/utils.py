@@ -1,4 +1,3 @@
-from cgitb import lookup
 from channels.db import database_sync_to_async
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
@@ -94,7 +93,12 @@ class RestLiveTestCase(TransactionTestCase):
             client = self.client
 
         request_id = await self.subscribe(
-            "test_app.Todo", "retrieve", getattr(self.todo, lookup_field), client, kwargs, params
+            "test_app.Todo",
+            "retrieve",
+            getattr(self.todo, lookup_field),
+            client,
+            kwargs,
+            params,
         )
         if error is None:
             self.assertTrue(await client.receive_nothing())
