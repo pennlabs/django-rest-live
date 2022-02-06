@@ -430,16 +430,44 @@ class LookupTodoTest(RestLiveTestCase):
         await self.client.disconnect()
 
     @async_test
-    async def test_lookup(self):
-        await self.subscribe_to_list()
+    async def test_list_subscription(self):
+        req = await self.subscribe_to_list()
 
-        todo_text = "test 1"
-        todo = await self.make_todo(text=todo_text)
-        res = await self.client.receive_json_from()
+        new_todo = await self.make_todo(text="test 1")
+        await self.assertReceivedBroadcastForTodo(
+            new_todo, CREATED, req, lookup_field="text"
+        )
 
-        await db(todo.delete)()
-        res = await self.client.receive_json_from()
-        self.assertEqual(res["instance"]["text"], todo_text)
+        new_todo.text = "new text"
+        await db(new_todo.save)()
+        await self.assertReceivedBroadcastForTodo(
+            new_todo, UPDATED, req, lookup_field="text"
+        )
+
+        pk = new_todo.pk
+        await db(new_todo.delete)()
+        new_todo.id = pk
+        await self.assertReceivedBroadcastForTodo(
+            new_todo, DELETED, req, lookup_field="text"
+        )
+
+    @async_test
+    async def test_retrieve_subscription(self):
+        self.todo = await db(Todo.objects.create)(list=self.list, text="test 5")
+        req = await self.subscribe_to_todo(lookup_field="text")
+
+        self.todo.text = "new test"
+        await db(self.todo.save)()
+        await self.assertReceivedBroadcastForTodo(
+            self.todo, UPDATED, req, lookup_field="text"
+        )
+
+        pk = self.todo.pk
+        await db(self.todo.delete)()
+        self.todo.id = pk
+        await self.assertReceivedBroadcastForTodo(
+            self.todo, DELETED, req, lookup_field="text"
+        )
 
 
 class PrivateRouterTests(RestLiveTestCase):
