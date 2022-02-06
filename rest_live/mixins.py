@@ -3,11 +3,11 @@ from typing import Type, Set, Tuple, Dict, Any, Optional
 
 from channels.http import AsgiRequest
 from django.db.models import Model
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.utils.decorators import classonlymethod
 from django.utils.http import urlencode
 from rest_framework.generics import GenericAPIView
-from rest_live.signals import save_handler
+from rest_live.signals import delete_handler, save_handler
 
 
 class RealtimeMixin(object):
@@ -47,6 +47,7 @@ class RealtimeMixin(object):
         model_class = viewset.get_model_class()
 
         post_save.connect(save_handler, sender=model_class, dispatch_uid=f"rest-live")
+        post_delete.connect(delete_handler, sender=model_class, dispatch_uid=f"rest-live")
         return viewset.get_model_class()._meta.label
 
     @classonlymethod

@@ -26,9 +26,10 @@ class Subscription:
 
     # To determine if an instance should be considered "created" or "deleted", we need
     # to keep track of all the instances that a given subscription currently considers
-    # visible. This set keeps track of that. This will probably be the main resource bottleneck
+    # visible. This map keeps track of that and will additionally map the primary keys of
+    # each instance to the lookup field. This will probably be the main resource bottleneck
     # in django-rest-live
-    pks_in_queryset: Set[int]
+    pks_to_lookup_in_queryset: Dict[int, object]
 
 
 class SubscriptionConsumer(JsonWebsocketConsumer):
@@ -156,8 +157,11 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
                     action=view_action,
                     view_kwargs=view_kwargs,
                     query_params=query_params,
-                    pks_in_queryset=set(
-                        [inst["pk"] for inst in view.get_queryset().all().values("pk")]
+                    pks_to_lookup_in_queryset=dict(
+                        {
+                            inst["pk"]: inst[view.lookup_field]
+                            for inst in view.get_queryset().all().values("pk", view.lookup_field)
+                        }
                     ),
                 )
             )
@@ -222,7 +226,7 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
             model = view.get_model_class()
             renderer = view.perform_content_negotiation(view.request)[0]
 
-            is_existing_instance = instance_pk in subscription.pks_in_queryset
+            is_existing_instance = instance_pk in subscription.pks_to_lookup_in_queryset
             try:
                 instance = view.filter_queryset(view.get_queryset()).get(pk=instance_pk)
                 action = UPDATED if is_existing_instance else CREATED
@@ -263,9 +267,44 @@ class SubscriptionConsumer(JsonWebsocketConsumer):
 
             # We don't need to check for membership since it's implicit given broadcast_data isn't None.
             if action == DELETED:
-                subscription.pks_in_queryset.remove(instance_pk)
+                del subscription.pks_to_lookup_in_queryset[instance_pk]
             else:
-                subscription.pks_in_queryset.add(instance_pk)
+                subscription.pks_to_lookup_in_queryset[instance_pk] = getattr(
+                    instance, view.lookup_field
+                )
             self.send_broadcast(
                 subscription.request_id, model_label, action, instance_data, renderer
             )
+
+    def model_deleted(self, event):
+        channel_name: str = event["channel_name"]
+        instance_pk: int = event["instance_pk"]
+        model_label: str = event["model"]
+
+        viewset_class = self.registry[model_label]
+
+        for subscription in self.subscriptions[channel_name]:
+            view = viewset_class.from_scope(
+                subscription.action,
+                self.scope,
+                subscription.view_kwargs,
+                subscription.query_params,
+            )
+            renderer = view.perform_content_negotiation(view.request)[0]
+            is_existing_instance = instance_pk in subscription.pks_to_lookup_in_queryset
+
+            if is_existing_instance:
+                instance_data = {
+                    view.lookup_field: subscription.pks_to_lookup_in_queryset[
+                        instance_pk
+                    ],
+                    "id": instance_pk,
+                }
+                del subscription.pks_to_lookup_in_queryset[instance_pk]
+                self.send_broadcast(
+                    subscription.request_id,
+                    model_label,
+                    DELETED,
+                    instance_data,
+                    renderer,
+                )

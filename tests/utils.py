@@ -67,7 +67,7 @@ class RestLiveTestCase(TransactionTestCase):
         self.assertDictEqual(response, expected)
 
     def make_todo_sub_response(
-        self, todo, action, request_id, serializer=TodoSerializer
+        self, todo, action, request_id, serializer=TodoSerializer, lookup_field="pk"
     ):
         response = {
             "type": "broadcast",
@@ -77,12 +77,15 @@ class RestLiveTestCase(TransactionTestCase):
             "instance": camelize(serializer(todo).data),
         }
         if action == "DELETED":
-            response["instance"] = {"pk": todo.pk, "id": todo.id}
+            response["instance"] = {
+                lookup_field: getattr(todo, lookup_field),
+                "id": todo.id,
+            }
 
         return response
 
     async def subscribe_to_todo(
-        self, client=None, error=None, kwargs=None, params=None
+        self, client=None, error=None, kwargs=None, params=None, lookup_field="pk"
     ):
         if kwargs is None:
             kwargs = dict()
@@ -90,7 +93,12 @@ class RestLiveTestCase(TransactionTestCase):
             client = self.client
 
         request_id = await self.subscribe(
-            "test_app.Todo", "retrieve", self.todo.pk, client, kwargs, params
+            "test_app.Todo",
+            "retrieve",
+            getattr(self.todo, lookup_field),
+            client,
+            kwargs,
+            params,
         )
         if error is None:
             self.assertTrue(await client.receive_nothing())
@@ -119,9 +127,17 @@ class RestLiveTestCase(TransactionTestCase):
         return await db(Todo.objects.create)(list=self.list, text=text)
 
     async def assertReceivedBroadcastForTodo(
-        self, todo, action, request_id, communicator=None, serializer=TodoSerializer
+        self,
+        todo,
+        action,
+        request_id,
+        communicator=None,
+        serializer=TodoSerializer,
+        lookup_field="pk",
     ):
         await self.assertResponseEquals(
-            self.make_todo_sub_response(todo, action, request_id, serializer),
+            self.make_todo_sub_response(
+                todo, action, request_id, serializer, lookup_field
+            ),
             communicator,
         )

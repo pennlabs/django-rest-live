@@ -23,6 +23,7 @@ from test_app.views import (
     KwargViewSet,
     FilteredViewSet,
     AnnotatedTodoViewSet,
+    LookupTodoViewSet,
 )
 from tests.utils import RestLiveTestCase
 
@@ -145,14 +146,14 @@ class BasicListTests(RestLiveTestCase):
     # TODO: Fix delete
     # TODO: Think about adding a way to mark a field as a "conditional delete" so when it updates in the DB it
     #       sends the delete signal to the frontend
-    # @async_test
-    # async def test_list_subscribe_delete(self):
-    #     new_todo: Todo = await self.make_todo()
-    #     await self.subscribe_to_list()
-    #     pk = new_todo.pk
-    #     await db(new_todo.delete)()
-    #     new_todo.id = pk
-    #     await self.assertReceivedUpdateForTodo(new_todo, DELETED)
+    @async_test
+    async def test_list_subscribe_delete(self):
+        new_todo = await self.make_todo()
+        req = await self.subscribe_to_list()
+        pk = new_todo.pk
+        await db(new_todo.delete)()
+        new_todo.id = pk
+        await self.assertReceivedBroadcastForTodo(new_todo, DELETED, req)
 
 
 class PermissionsTests(RestLiveTestCase):
@@ -423,6 +424,64 @@ class AnnotatedTodoTest(RestLiveTestCase):
         await db(todo.save)()
         res = await self.client.receive_json_from()
         self.assertEqual(res["instance"]["textLength"], len(todo_text))
+
+
+class LookupTodoTest(RestLiveTestCase):
+    """
+    Tests to make sure that subscriptions properly account for lookup fields other than pk.
+    """
+
+    async def asyncSetUp(self):
+        router = RealtimeRouter()
+        router.register(LookupTodoViewSet)
+        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        connected, _ = await self.client.connect()
+        self.assertTrue(connected)
+        self.list = await db(List.objects.create)(name="test list")
+        await db(Todo.objects.create)(list=self.list, text="test")
+
+    async def asyncTearDown(self):
+        await self.client.disconnect()
+
+    @async_test
+    async def test_list_subscription(self):
+        req = await self.subscribe_to_list()
+
+        new_todo = await self.make_todo(text="test 1")
+        await self.assertReceivedBroadcastForTodo(
+            new_todo, CREATED, req, lookup_field="text"
+        )
+
+        new_todo.text = "new text"
+        await db(new_todo.save)()
+        await self.assertReceivedBroadcastForTodo(
+            new_todo, UPDATED, req, lookup_field="text"
+        )
+
+        pk = new_todo.pk
+        await db(new_todo.delete)()
+        new_todo.id = pk
+        await self.assertReceivedBroadcastForTodo(
+            new_todo, DELETED, req, lookup_field="text"
+        )
+
+    @async_test
+    async def test_retrieve_subscription(self):
+        self.todo = await db(Todo.objects.create)(list=self.list, text="test 5")
+        req = await self.subscribe_to_todo(lookup_field="text")
+
+        self.todo.text = "new test"
+        await db(self.todo.save)()
+        await self.assertReceivedBroadcastForTodo(
+            self.todo, UPDATED, req, lookup_field="text"
+        )
+
+        pk = self.todo.pk
+        await db(self.todo.delete)()
+        self.todo.id = pk
+        await self.assertReceivedBroadcastForTodo(
+            self.todo, DELETED, req, lookup_field="text"
+        )
 
 
 class PrivateRouterTests(RestLiveTestCase):
