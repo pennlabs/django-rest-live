@@ -434,7 +434,7 @@ class LookupTodoTest(RestLiveTestCase):
     async def asyncSetUp(self):
         router = RealtimeRouter()
         router.register(LookupTodoViewSet)
-        self.client = APICommunicator(router.as_consumer(), "/ws/subscribe/")
+        self.client = make_client(router.as_consumer(), "/ws/subscribe/")
         connected, _ = await self.client.connect()
         self.assertTrue(connected)
         self.list = await db(List.objects.create)(name="test list")
