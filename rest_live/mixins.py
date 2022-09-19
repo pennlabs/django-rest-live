@@ -82,6 +82,7 @@ class RealtimeMixin(object):
         )
         # TODO: Run other middleware?
         base_request.user = scope.get("user", None)
+        base_request._user = scope.get("user", None)
         base_request.session = scope.get("session", None)
 
         self.request = self.initialize_request(base_request)
